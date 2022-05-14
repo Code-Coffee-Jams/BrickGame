@@ -4,9 +4,12 @@ iffy = require("libraries.iffy")
 MAX_WIDTH = false
 MAX_HEIGHT = false
 
--- paddle movement directions
+-- keyboard key names
 KEY_LEFT = "left"
 KEY_RIGHT = "right"
+KEY_ESC = "escape"
+
+-- paddle movement directions
 PaddleDirectionEnum = {
     STILL = 0,
     LEFT = -1,
@@ -66,6 +69,8 @@ function love.keypressed(key, scancode, is_repeat)
         PaddleDirection = PaddleDirection + PaddleDirectionEnum.LEFT
     elseif key == KEY_RIGHT then
         PaddleDirection = PaddleDirection + PaddleDirectionEnum.RIGHT
+    elseif key == KEY_ESC then
+        love.event.quit()
     end
 end
 
