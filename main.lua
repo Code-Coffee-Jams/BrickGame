@@ -1,4 +1,5 @@
 iffy = require("libraries.iffy")
+utils = require("utils")
 
 -- screen size
 MAX_WIDTH = false
@@ -25,13 +26,11 @@ GameStateEnum = {
 GameState = GameStateEnum.PLAYING
 
 -- paddle movement directions
-PaddleDirectionEnum = {
+HorizontalDirectionEnum = {
     STILL = 0,
     LEFT = -1,
     RIGHT = 1
 }
-
-PaddleDirection = PaddleDirectionEnum.STILL
 
 -- images, sprites
 Paddle = {
@@ -41,6 +40,8 @@ Paddle = {
     height = 24,
     x = false,
     y = false,
+    acceleration = HorizontalDirectionEnum.STILL,
+    speed = 0,
 }
 
 Ball = {
@@ -53,6 +54,15 @@ Ball = {
     angle = false, -- counter clockwise, beginning at straight down
 }
 
+function resetGame()
+    Paddle.x = (MAX_WIDTH - Paddle.width) / 2
+    Paddle.y = MAX_HEIGHT - PADDLE_Y_OFFSET
+    Paddle.speed = 0
+
+    Ball.x = Paddle.x
+    Ball.y = (MAX_HEIGHT - Ball.height) / 2
+    Ball.angle = math.rad(math.random(-60, 60))
+end
 
 function prepareSprite(sprite)
     iffy.newImage(sprite.name, sprite.path)
@@ -70,18 +80,16 @@ function love.load()
     prepareSprite(Ball)
 
     MAX_WIDTH, MAX_HEIGHT = love.window.getMode()
-    Paddle.x = (MAX_WIDTH - Paddle.width) / 2
-    Paddle.y = MAX_HEIGHT - PADDLE_Y_OFFSET
-    PaddleDirection = PaddleDirectionEnum.STILL
-
-    Ball.x = Paddle.x
-    Ball.y = (MAX_HEIGHT - Ball.height) / 2
-    Ball.angle = math.rad(math.random(-60, 60))
+    resetGame()
 end
 
 function love.keypressed(key, scancode, is_repeat)
     if key == KEY_ESC then
         love.event.quit()
+    elseif key == KEY_LEFT then
+        Paddle.acceleration = Paddle.acceleration + HorizontalDirectionEnum.LEFT
+    elseif key == KEY_RIGHT then
+        Paddle.acceleration = Paddle.acceleration + HorizontalDirectionEnum.RIGHT
     end
 
     if GameState == GameStateEnum.MENU then
@@ -92,33 +100,24 @@ function love.keypressed(key, scancode, is_repeat)
         if is_repeat then
             return
         end
-
-        if key == KEY_LEFT then
-            PaddleDirection = PaddleDirection + PaddleDirectionEnum.LEFT
-        elseif key == KEY_RIGHT then
-            PaddleDirection = PaddleDirection + PaddleDirectionEnum.RIGHT
-        end
     elseif GameState == GameStateEnum.GAMEOVER or GameState == GameStateEnum.WINNER then
         if key == KEY_ENTER then
             GameState = GameStateEnum.MENU
 
-            Paddle.x = (MAX_WIDTH - Paddle.width) / 2
-            Paddle.y = MAX_HEIGHT - PADDLE_Y_OFFSET
-
-            Ball.x = Paddle.x
-            Ball.y = (MAX_HEIGHT - Ball.height) / 2
-            Ball.angle = math.rad(math.random(0, 359))
+            resetGame()
         end
     end
 end
 
 function love.keyreleased(key, scancode)
+    if key == KEY_LEFT then
+        Paddle.acceleration = Paddle.acceleration - HorizontalDirectionEnum.LEFT
+    elseif key == KEY_RIGHT then
+        Paddle.acceleration = Paddle.acceleration - HorizontalDirectionEnum.RIGHT
+    end
+
     if GameState == GameStateEnum.PLAYING then
-        if key == KEY_LEFT then
-            PaddleDirection = PaddleDirection - PaddleDirectionEnum.LEFT
-        elseif key == KEY_RIGHT then
-            PaddleDirection = PaddleDirection - PaddleDirectionEnum.RIGHT
-        end
+
     end
 end
 
@@ -145,20 +144,33 @@ function love.update(dt)
 
         local offsetFromCenter = ((Ball.x + Ball.width / 2) - (Paddle.x + Paddle.width / 2)) / (Paddle.width / 2)
         if offsetFromCenter >= -1 and offsetFromCenter <= 1 then
-            -- if Ball.x >= Paddle.x and Ball.x + Ball.width <= Paddle.x + Paddle.width then
-
             if Ball.y + Ball.height >= Paddle.y and Ball.y + Ball.height < Paddle.y + Paddle.height then
                 Ball.y = Paddle.y - Ball.height
-                -- Ball.angle = math.rad(180) - Ball.angle - math.rad(45) * offsetFromCenter
-                Ball.angle = math.rad(180) - math.rad(60) * offsetFromCenter
+
+                Ball.angle = math.rad(180) - Ball.angle - math.rad(70) *
+                    offsetFromCenter * math.abs(offsetFromCenter)
             end
         end
 
         Ball.x = math.min(MAX_WIDTH - Ball.width, math.max(0, Ball.x))
         Ball.y = math.min(MAX_HEIGHT - Ball.height, math.max(0, Ball.y))
 
-        Paddle.x = Paddle.x + dt * PaddleDirection * 500
-        Paddle.x = math.min(MAX_WIDTH - Paddle.width, math.max(0, Paddle.x))
+        if Paddle.acceleration == HorizontalDirectionEnum.STILL then
+            if Paddle.speed > 0 then
+                Paddle.speed = math.max(0, Paddle.speed - dt * 2)
+            else
+                Paddle.speed = math.min(0, Paddle.speed + dt * 2)
+            end
+        else
+            Paddle.speed = utils.clamp(-1, Paddle.speed + dt * 3 * Paddle.acceleration, 1)
+        end
+
+        Paddle.x = Paddle.x + dt * Paddle.speed * 500
+
+        Paddle.x = utils.clamp(0, Paddle.x, MAX_WIDTH - Paddle.width)
+        if Paddle.x + Paddle.width == MAX_WIDTH or Paddle.x == 0 then
+            Paddle.speed = -Paddle.speed * 0.7
+        end
     end
 end
 
