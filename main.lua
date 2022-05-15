@@ -1,3 +1,4 @@
+inspect = require("libraries.inspect")
 iffy = require("libraries.iffy")
 utils = require("utils")
 
@@ -10,10 +11,12 @@ KEY_LEFT = "left"
 KEY_RIGHT = "right"
 KEY_ESC = "escape"
 KEY_ENTER = "return"
+KEY_R = "r"
 -- fonts
 FONT = false
 
 PADDLE_Y_OFFSET = 100
+COLLISION_CHECK_INTERVAL = 10
 
 -- game states
 GameStateEnum = {
@@ -64,6 +67,28 @@ function resetGame()
     Ball.angle = math.rad(math.random(-60, 60))
 end
 
+function getCollisionCheckpoints(x1, y1, x2, y2)
+    local result = {}
+    local a = y1 - y2
+    local b = x2 - x1
+    local c = x1 * (y2 - y1) - y1 * (x2 - x1)
+
+    local xs = math.min(x1, x2)
+    local xe = math.max(x1, x2)
+
+    for x = xe, xs, -COLLISION_CHECK_INTERVAL do
+        local y = -(x * a + c) / b
+        table.insert(result, { x, y })
+    end
+
+    return result
+
+end
+
+function checkPointInRect(px, py, rx, ry, rw, rh)
+    return px >= rx and px <= rx + rw and py >= ry and py <= ry + rh
+end
+
 function prepareSprite(sprite)
     iffy.newImage(sprite.name, sprite.path)
 
@@ -86,6 +111,8 @@ end
 function love.keypressed(key, scancode, is_repeat)
     if key == KEY_ESC then
         love.event.quit()
+    elseif key == KEY_R then
+        resetGame()
     elseif key == KEY_LEFT then
         Paddle.acceleration = Paddle.acceleration + HorizontalDirectionEnum.LEFT
     elseif key == KEY_RIGHT then
@@ -126,8 +153,13 @@ function love.update(dt)
         local dx = math.sin(Ball.angle)
         local dy = math.cos(Ball.angle)
 
-        Ball.x = Ball.x + dt * dx * 250
-        Ball.y = Ball.y + dt * dy * 250
+        local oldx = Ball.x
+        local oldy = Ball.y
+
+        Ball.x = Ball.x + dt * dx * 500
+        Ball.y = Ball.y + dt * dy * 500
+
+        local collisionCheckpoints = getCollisionCheckpoints(oldx, oldy, Ball.x, Ball.y)
 
         if Ball.y + Ball.height >= MAX_HEIGHT then
             GameState = GameStateEnum.GAMEOVER
@@ -142,15 +174,18 @@ function love.update(dt)
             Ball.angle = math.rad(180) - Ball.angle
         end
 
-        local offsetFromCenter = ((Ball.x + Ball.width / 2) - (Paddle.x + Paddle.width / 2)) / (Paddle.width / 2)
-        if offsetFromCenter >= -1 and offsetFromCenter <= 1 then
-            if Ball.y + Ball.height >= Paddle.y and Ball.y + Ball.height < Paddle.y + Paddle.height then
-                Ball.y = Paddle.y - Ball.height
+        -- local offsetFromCenter = ((Ball.x + Ball.width / 2) - (Paddle.x + Paddle.width / 2)) / (Paddle.width / 2)
+        -- if offsetFromCenter >= -1 and offsetFromCenter <= 1 then
+        --     if Ball.y + Ball.height >= Paddle.y and Ball.y + Ball.height < Paddle.y + Paddle.height then
+        --         Ball.y = Paddle.y - Ball.height
+        --
+        --         Ball.angle = math.rad(180) - Ball.angle - math.rad(70) *
+        --             offsetFromCenter * math.abs(offsetFromCenter)
+        --     end
+        -- end
 
-                Ball.angle = math.rad(180) - Ball.angle - math.rad(70) *
-                    offsetFromCenter * math.abs(offsetFromCenter)
-            end
-        end
+
+
 
         Ball.x = math.min(MAX_WIDTH - Ball.width, math.max(0, Ball.x))
         Ball.y = math.min(MAX_HEIGHT - Ball.height, math.max(0, Ball.y))
@@ -171,6 +206,30 @@ function love.update(dt)
         if Paddle.x + Paddle.width == MAX_WIDTH or Paddle.x == 0 then
             Paddle.speed = -Paddle.speed * 0.7
         end
+
+        local collision = false
+        local cx
+        local cy
+        for _, checkpoint in ipairs(collisionCheckpoints) do
+            cx, cy = unpack(checkpoint)
+            cx = cx + Ball.width / 2
+            cy = cy + Ball.height
+            if checkPointInRect(cx, cy, Paddle.x, Paddle.y, Paddle.width, Paddle.height) then
+                collision = true
+            end
+        end
+
+        if collision then
+            local offsetFromCenter = ((Ball.x + Ball.width / 2) - (Paddle.x + Paddle.width / 2)) / (Paddle.width / 2)
+
+            local overshootY = (Ball.y - Paddle.y)
+            if offsetFromCenter > -1 and offsetFromCenter < 1 then
+                Ball.y = Paddle.y - (Paddle.y - oldy) - Ball.height - overshootY
+            end
+            Ball.angle = math.rad(180) - Ball.angle - math.rad(70) * offsetFromCenter * math.abs(offsetFromCenter)
+        end
+
+
     end
 end
 
