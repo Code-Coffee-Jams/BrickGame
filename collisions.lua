@@ -57,80 +57,7 @@ local function fastCalculateCircleVectorCollision(origin, radius, position0, pos
     return position0 + (position1 - position0) * t
 end
 
-function module.calculateBallPaddleCollision(ball, newBallPosition, paddle)
-    local paddle0 = paddle.position + Vector.new(-paddle.width / 2, -paddle.height / 2)
-    local paddle1 = paddle.position + Vector.new(paddle.width / 2, -paddle.height / 2)
-    local offset = Vector.new(0, -ball.radius)
-
-    local collisionPoint = false
-
-    -- vertical collision
-    collisionPoint = Vector.getIntersectionPoint(ball.position, newBallPosition, paddle0 + offset, paddle1 + offset)
-
-    if collisionPoint then
-        return collisionPoint, Vector.new(0, -1)
-    end
-
-    -- corner collisions
-    local len = math.sqrt(0.5)
-
-    -- left corner
-    collisionPoint = fastCalculateCircleVectorCollision(paddle0, ball.radius, ball.position, newBallPosition)
-    if collisionPoint and collisionPoint.y <= paddle0.y then
-        return collisionPoint, Vector.new(-len, -len)
-    end
-
-    -- right corner
-    collisionPoint = fastCalculateCircleVectorCollision(paddle1, ball.radius, ball.position, newBallPosition)
-    if collisionPoint and collisionPoint.y <= paddle1.y then
-        return collisionPoint, Vector.new(len, -len)
-    end
-
-    -- no collision found
-    return false
-end
-
-function module.calculateBallWallsCollision(ball, newBallPosition, window)
-    local wall0 = Vector.new()
-    local wall1 = Vector.new()
-    local offset = Vector.new(ball.radius, 0)
-
-    local collisionPoint = false
-
-    -- left wall
-    wall0:setXY(0, window.height)
-    wall1:setXY(0, 0)
-    offset:setAngle(math.rad(0))
-
-    collisionPoint = Vector.getIntersectionPoint(ball.position, newBallPosition, wall0 + offset, wall1 + offset)
-    if collisionPoint then
-        return collisionPoint, offset:getNormalized()
-    end
-
-    -- top wall
-    wall0:setXY(0, 0)
-    wall1:setXY(window.width, 0)
-    offset:setAngle(math.rad(90))
-
-    collisionPoint = Vector.getIntersectionPoint(ball.position, newBallPosition, wall0 + offset, wall1 + offset)
-    if collisionPoint then
-        return collisionPoint, offset:getNormalized()
-    end
-
-    -- right wall
-    wall0:setXY(window.width, 0)
-    wall1:setXY(window.width, window.height)
-    offset:setAngle(math.rad(180))
-
-    collisionPoint = Vector.getIntersectionPoint(ball.position, newBallPosition, wall0 + offset, wall1 + offset)
-    if collisionPoint then
-        return collisionPoint, offset:getNormalized()
-    end
-
-    return false
-end
-
-function module.calculateBallBrickCollision(ball, newBallPosition, brick)
+local function calculateBallBrickCollision(ball, newBallPosition, brick)
     -- list of all collision points with respective normal vectors; the closest to ball.position
     -- will be returned
     local collisions = {}
@@ -197,6 +124,112 @@ function module.calculateBallBrickCollision(ball, newBallPosition, brick)
     end
 
     return collision.point, collision.normal
+end
+
+function module.calculateBallPaddleCollision(ball, newBallPosition, paddle)
+    local paddle0 = paddle.position + Vector.new(-paddle.width / 2, -paddle.height / 2)
+    local paddle1 = paddle.position + Vector.new(paddle.width / 2, -paddle.height / 2)
+    local offset = Vector.new(0, -ball.radius)
+
+    local collisionPoint = false
+
+    -- vertical collision
+    collisionPoint = Vector.getIntersectionPoint(ball.position, newBallPosition, paddle0 + offset, paddle1 + offset)
+
+    if collisionPoint then
+        -- calculate relative offset from paddle center; resulting number is in range [-1, 1];
+        -- -1 is left end of paddle, 0 is middle, +1 is right end of paddle
+        local relativeOffsetFromPaddleCenter = (collisionPoint.x - paddle.position.x) / (paddle.width / 2)
+
+        local normal = Vector.fromAngle(math.rad(-90 + 15 * relativeOffsetFromPaddleCenter))
+
+        return collisionPoint, normal
+    end
+
+    -- corner collisions
+
+    -- left corner
+    collisionPoint = fastCalculateCircleVectorCollision(paddle0, ball.radius, ball.position, newBallPosition)
+    if collisionPoint and collisionPoint.y <= paddle0.y then
+        return collisionPoint, Vector.fromAngle(math.rad(-90 - 15))
+    end
+
+    -- right corner
+    collisionPoint = fastCalculateCircleVectorCollision(paddle1, ball.radius, ball.position, newBallPosition)
+    if collisionPoint and collisionPoint.y <= paddle1.y then
+        return collisionPoint, Vector.fromAngle(math.rad(-90 + 15))
+    end
+
+    -- no collision found
+    return false
+end
+
+function module.calculateBallWallsCollision(ball, newBallPosition, window)
+    local collisionPoint = false
+
+    local leftX = ball.radius
+    local topY = ball.radius
+    local rightX = window.width - ball.radius
+    local bottomY = window.height
+
+    local bottomLeftCorner = Vector.new(leftX, bottomY)
+    local topLeftCorner = Vector.new(leftX, topY)
+    local topRightCorner = Vector.new(rightX, topY)
+    local bottomRightCorner = Vector.new(rightX, bottomY)
+
+    -- left wall
+    collisionPoint = Vector.getIntersectionPoint(ball.position, newBallPosition, bottomLeftCorner, topLeftCorner)
+    if collisionPoint then
+        return collisionPoint, Vector.fromAngle(math.rad(0))
+    end
+
+    -- top wall
+    collisionPoint = Vector.getIntersectionPoint(ball.position, newBallPosition, topLeftCorner, topRightCorner)
+    if collisionPoint then
+        return collisionPoint, Vector.fromAngle(math.rad(90))
+    end
+
+    -- right wall
+    collisionPoint = Vector.getIntersectionPoint(ball.position, newBallPosition, topRightCorner, bottomRightCorner)
+    if collisionPoint then
+        return collisionPoint, Vector.fromAngle(math.rad(180))
+    end
+
+    return false
+end
+
+function module.calculateBallBricksCollision(ball, newBallPosition, bricks)
+    -- calculate all collision points for every brick and return the one closest to ball position
+    local collisions = {}
+
+    for index, brick in ipairs(bricks) do
+        local point, normal = calculateBallBrickCollision(ball, newBallPosition, brick)
+
+        if point then
+            local collision = {
+                brick = brick,
+                distance = (point - Ball.position):getLength(),
+                point = point,
+                normal = normal,
+            }
+
+            table.insert(collisions, collision)
+        end
+    end
+
+    if not collisions[1] then
+        return false
+    end
+
+    local closestCollision = collisions[1]
+
+    for index, collision in ipairs(collisions) do
+        if collision.distance < closestCollision.distance then
+            closestCollision = collision
+        end
+    end
+
+    return closestCollision.brick, closestCollision.point, closestCollision.normal
 end
 
 return module

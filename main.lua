@@ -66,6 +66,11 @@ Brick = { -- generic sprite used by multiple brick objects
 
 Bricks = {} -- list of actual brick objects used in game
 
+NextCollision = {
+    position = false,
+    object = false,
+}
+
 function CreateBrick(centerX, centerY)
     local position = Vector.new(centerX - Brick.width / 2, centerY - Brick.height / 2)
 
@@ -116,29 +121,30 @@ function UpdateBall(dt)
         GameState = GameStateEnum.GAMEOVER
     end
 
-    local collisionPoint, normalVector
+    local hitBrick, collisionPoint, normalVector
 
     -- check paddle collision
     collisionPoint, normalVector = Collisions.calculateBallPaddleCollision(Ball, newBallPosition, Paddle)
 
     if not collisionPoint then
-        -- check wall collision
-        collisionPoint, normalVector = Collisions.calculateBallWallsCollision(Ball, newBallPosition, Window)
-    end
+        -- check bricks collisions
 
-    if not collisionPoint and Bricks[1] then
-        -- check brick collision
-        for index, brick in ipairs(Bricks) do
-            collisionPoint, normalVector = Collisions.calculateBallBrickCollision(Ball, newBallPosition, brick)
-            if collisionPoint then
-                table.remove(Bricks, index)
-                break
+        hitBrick, collisionPoint, normalVector = Collisions.calculateBallBricksCollision(Ball, newBallPosition, Bricks)
+
+        if hitBrick then
+            for index, brick in ipairs(Bricks) do
+                if brick == hitBrick then
+                    table.remove(Bricks, index)
+                    break
+                end
             end
-        end
 
-        if not Bricks[1] then
-            GameState = GameStateEnum.WINNER
-            return
+            if not Bricks[1] then
+                GameState = GameStateEnum.WINNER
+            end
+        else
+            -- check wall collision
+            collisionPoint, normalVector = Collisions.calculateBallWallsCollision(Ball, newBallPosition, Window)
         end
     end
 
@@ -245,6 +251,26 @@ function love.update(dt)
 
         -- calculate new ball position and check collisions
         UpdateBall(dt)
+
+        -- simulate next collision
+        local extrapolatedPosition = Ball.position + Ball.velocity * 1000
+
+        NextCollision.position = false
+        NextCollision.object = false
+
+        NextCollision.position = Collisions.calculateBallPaddleCollision(Ball, extrapolatedPosition, Paddle)
+
+        if NextCollision.position then
+            NextCollision.object = Paddle
+        else
+            if Bricks[1] then
+                NextCollision.object, NextCollision.position, _ = Collisions.calculateBallBricksCollision(Ball, extrapolatedPosition, Bricks)
+            end
+
+            if not NextCollision.position then
+                NextCollision.position = Collisions.calculateBallWallsCollision(Ball, extrapolatedPosition, Window)
+            end
+        end
     end
 end
 
@@ -268,5 +294,17 @@ function love.draw()
     elseif GameState == GameStateEnum.GAMEOVER then
         love.graphics.printf("GAME OVER\nPress ENTER to go back to menu", 0, Window.height / 2,
             Window.width, "center", 0, 1, 1, 0, 0, 0, 0)
+    end
+
+    if NextCollision.position then
+        love.graphics.setColor(1.0, 0.0, 0.0)
+
+        love.graphics.line(Ball.position.x, Ball.position.y, NextCollision.position.x, NextCollision.position.y)
+
+        if NextCollision.object then
+            love.graphics.rectangle("line", NextCollision.object.position.x - NextCollision.object.width / 2, NextCollision.object.position.y - NextCollision.object.height / 2, NextCollision.object.width, NextCollision.object.height)
+        end
+
+        love.graphics.setColor(1.0, 1.0, 1.0)
     end
 end
