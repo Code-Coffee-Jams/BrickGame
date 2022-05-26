@@ -1,19 +1,21 @@
-iffy = require("libraries.iffy")
-utils = require("utils")
+Utils = require("utils")
+Vector = require("vector")
+Sprites = require("sprites")
+Collisions = require("collisions")
 
 -- screen size
-MAX_WIDTH = false
-MAX_HEIGHT = false
+Window = {
+    width = false,
+    height = false,
+}
 
 -- keyboard key names
-KEY_LEFT = "left"
-KEY_RIGHT = "right"
-KEY_ESC = "escape"
-KEY_ENTER = "return"
--- fonts
-FONT = false
-
-PADDLE_Y_OFFSET = 100
+KeyEnum = {
+    LEFT = "left",
+    RIGHT = "right",
+    ESC = "escape",
+    ENTER = "return",
+}
 
 -- game states
 GameStateEnum = {
@@ -23,164 +25,286 @@ GameStateEnum = {
     GAMEOVER = 3,
 }
 
+-- paddle movement directions
+LeftVector = Vector.new(-1, 0)
+RightVector = -LeftVector
+
+-- global state
 GameState = GameStateEnum.PLAYING
 
--- paddle movement directions
-HorizontalDirectionEnum = {
-    STILL = 0,
-    LEFT = -1,
-    RIGHT = 1
-}
-
--- images, sprites
-Paddle = {
-    path = "assets/png/paddleRed.png",
-    name = "paddle",
+-- images, sprites, game entities/objects
+Paddle = { -- single object
+    imagePath = "assets/png/paddleRed.png",
+    spriteName = "paddle",
     width = 104,
     height = 24,
-    x = false,
-    y = false,
-    acceleration = HorizontalDirectionEnum.STILL,
-    speed = 0,
+    position = false, -- vector
+    velocity = false, -- vector
+    acceleration = false, -- vector
+    dVelocity = 500,
+    dAcceleration = 3,
+    dFrictionDeceleration = 2,
 }
 
-Ball = {
-    path = "assets/png/ballBlue.png",
-    name = "ball",
+Ball = { -- single object
+    imagePath = "assets/png/ballBlue.png",
+    spriteName = "ball",
+    radius = 22 / 2,
     width = 22,
     height = 22,
-    x = false,
-    y = false,
-    angle = false, -- counter clockwise, beginning at straight down
+    position = false, -- vector
+    velocity = false, -- vector
+    dVelocity = 300,
 }
 
-function resetGame()
-    Paddle.x = (MAX_WIDTH - Paddle.width) / 2
-    Paddle.y = MAX_HEIGHT - PADDLE_Y_OFFSET
-    Paddle.speed = 0
+Brick = { -- generic sprite used by multiple brick objects
+    imagePath = "assets/png/element_grey_rectangle.png",
+    spriteName = "brick_grey",
+    width = 64,
+    height = 32,
+}
 
-    Ball.x = Paddle.x
-    Ball.y = (MAX_HEIGHT - Ball.height) / 2
-    Ball.angle = math.rad(math.random(-60, 60))
+Bricks = {} -- list of actual brick objects used in game
+
+NextCollision = {
+    position = false,
+    object = false,
+}
+
+function CreateBrick(centerX, centerY)
+    local position = Vector.new(centerX - Brick.width / 2, centerY - Brick.height / 2)
+
+    return {
+        spriteName = "brick_grey",
+        width = Brick.width,
+        height = Brick.height,
+        position = position,
+    }
 end
 
-function prepareSprite(sprite)
-    iffy.newImage(sprite.name, sprite.path)
+function ResetGame()
+    -- setup paddle
+    Paddle.position = Vector.new((Window.width - Paddle.width) / 2, Window.height - 100)
+    Paddle.velocity = Vector.new()
+    Paddle.acceleration = Vector.new()
 
-    iffy.newSprite(sprite.name, sprite.name, 0, 0, sprite.width, sprite.height)
+    -- check for keys pressed before game setup
+    if love.keyboard.isDown(KeyEnum.LEFT) then
+        Paddle.acceleration:transform(LeftVector)
+    end
+    if love.keyboard.isDown(KeyEnum.RIGHT) then
+        Paddle.acceleration:transform(RightVector)
+    end
+
+    -- setup ball
+    Ball.position = Vector.new((Window.width - Ball.width) / 2, (Window.height - Ball.height) / 2)
+    Ball.velocity = Vector.fromAngle(math.rad(-90 + math.random(-30, 30)))
+
+    -- setup bricks
+    local centerX = Window.width / 2
+    local centerY = Window.height / 2 - 100
+    Bricks = {}
+    for dx = -3, 4 do
+        for dy = -3, 0 do
+            table.insert(Bricks, CreateBrick(centerX + dx * Brick.width, centerY + dy * Brick.height))
+        end
+    end
+end
+
+function UpdateBall(dt)
+    -- calculate ball position after this update
+    local dBallPosition = Ball.velocity:copy() * Ball.dVelocity * dt
+    local newBallPosition = Ball.position + dBallPosition
+
+    -- check ball outside playing area
+    if newBallPosition.y > Window.height then
+        GameState = GameStateEnum.GAMEOVER
+    end
+
+    local hitBrick, collisionPoint, normalVector
+
+    -- check paddle collision
+    collisionPoint, normalVector = Collisions.calculateBallPaddleCollision(Ball, newBallPosition, Paddle)
+
+    if not collisionPoint then
+        -- check bricks collisions
+
+        hitBrick, collisionPoint, normalVector = Collisions.calculateBallBricksCollision(Ball, newBallPosition, Bricks)
+
+        if hitBrick then
+            for index, brick in ipairs(Bricks) do
+                if brick == hitBrick then
+                    table.remove(Bricks, index)
+                    break
+                end
+            end
+
+            if not Bricks[1] then
+                GameState = GameStateEnum.WINNER
+            end
+        else
+            -- check wall collision
+            collisionPoint, normalVector = Collisions.calculateBallWallsCollision(Ball, newBallPosition, Window)
+        end
+    end
+
+    if not collisionPoint then
+        Ball.position:transform(dBallPosition)
+        return true
+    else
+        -- call this function recursively, reducing dt
+        dt = dt * (1 - (collisionPoint - Ball.position):getLength() / dBallPosition:getLength())
+        Ball.position = collisionPoint + normalVector * 0.01
+
+        -- equation taken from:
+        -- https://math.stackexchange.com/questions/13261/how-to-get-a-reflection-vector
+        Ball.velocity:transform(normalVector * (-2) * Ball.velocity:dotProduct(normalVector))
+        -- GameState = GameStateEnum.MENU
+
+        if dt > 0 then
+            UpdateBall(dt)
+        end
+    end
 end
 
 function love.load()
+    -- init random seed
     math.randomseed(os.time())
 
-    FONT = love.graphics.newFont(20)
-    love.graphics.setFont(FONT)
+    -- init bigger font
+    love.graphics.setFont(love.graphics.newFont(20))
 
-    prepareSprite(Paddle)
-    prepareSprite(Ball)
+    -- init used sprites
+    for _, object in ipairs({ Paddle, Ball, Brick }) do
+        Sprites.init(object)
+    end
 
-    MAX_WIDTH, MAX_HEIGHT = love.window.getMode()
-    resetGame()
+    -- save game window size
+    Window.width, Window.height = love.window.getMode()
+
+    -- setup game objects
+    ResetGame()
 end
 
 function love.keypressed(key, scancode, is_repeat)
-    if key == KEY_ESC then
+    if is_repeat then
+        -- ignore repeat presses
+        return
+    end
+
+    if key == KeyEnum.ESC then
         love.event.quit()
-    elseif key == KEY_LEFT then
-        Paddle.acceleration = Paddle.acceleration + HorizontalDirectionEnum.LEFT
-    elseif key == KEY_RIGHT then
-        Paddle.acceleration = Paddle.acceleration + HorizontalDirectionEnum.RIGHT
     end
 
     if GameState == GameStateEnum.MENU then
-        if key == KEY_ENTER then
+        if key == KeyEnum.ENTER then
             GameState = GameStateEnum.PLAYING
         end
     elseif GameState == GameStateEnum.PLAYING then
-        if is_repeat then
-            return
+        if key == KeyEnum.LEFT then
+            Paddle.acceleration:transform(LeftVector)
+        elseif key == KeyEnum.RIGHT then
+            Paddle.acceleration:transform(RightVector)
         end
     elseif GameState == GameStateEnum.GAMEOVER or GameState == GameStateEnum.WINNER then
-        if key == KEY_ENTER then
+        if key == KeyEnum.ENTER then
             GameState = GameStateEnum.MENU
 
-            resetGame()
+            ResetGame()
         end
     end
 end
 
 function love.keyreleased(key, scancode)
-    if key == KEY_LEFT then
-        Paddle.acceleration = Paddle.acceleration - HorizontalDirectionEnum.LEFT
-    elseif key == KEY_RIGHT then
-        Paddle.acceleration = Paddle.acceleration - HorizontalDirectionEnum.RIGHT
-    end
-
     if GameState == GameStateEnum.PLAYING then
-
+        if key == KeyEnum.LEFT then
+            Paddle.acceleration:transform(RightVector)
+        elseif key == KeyEnum.RIGHT then
+            Paddle.acceleration:transform(LeftVector)
+        end
     end
 end
 
 function love.update(dt)
     if GameState == GameStateEnum.PLAYING then
-        local dx = math.sin(Ball.angle)
-        local dy = math.cos(Ball.angle)
-
-        Ball.x = Ball.x + dt * dx * 250
-        Ball.y = Ball.y + dt * dy * 250
-
-        if Ball.y + Ball.height >= MAX_HEIGHT then
-            GameState = GameStateEnum.GAMEOVER
-            return
-        end
-
-        if Ball.x < 0 or Ball.x + Ball.width > MAX_WIDTH then
-            Ball.angle = math.rad(360) - Ball.angle
-        end
-
-        if Ball.y < 0 then
-            Ball.angle = math.rad(180) - Ball.angle
-        end
-
-        local offsetFromCenter = ((Ball.x + Ball.width / 2) - (Paddle.x + Paddle.width / 2)) / (Paddle.width / 2)
-        if offsetFromCenter >= -1 and offsetFromCenter <= 1 then
-            if Ball.y + Ball.height >= Paddle.y and Ball.y + Ball.height < Paddle.y + Paddle.height then
-                Ball.y = Paddle.y - Ball.height
-
-                Ball.angle = math.rad(180) - Ball.angle - math.rad(70) *
-                    offsetFromCenter * math.abs(offsetFromCenter)
-            end
-        end
-
-        Ball.x = math.min(MAX_WIDTH - Ball.width, math.max(0, Ball.x))
-        Ball.y = math.min(MAX_HEIGHT - Ball.height, math.max(0, Ball.y))
-
-        if Paddle.acceleration == HorizontalDirectionEnum.STILL then
-            if Paddle.speed > 0 then
-                Paddle.speed = math.max(0, Paddle.speed - dt * 2)
+        -- move paddle
+        local paddleSpeed = Paddle.velocity.x
+        if Paddle.acceleration.x == 0 then
+            -- friction deceleration
+            if paddleSpeed > 0 then
+                Paddle.velocity.x = (math.max(0, paddleSpeed - Paddle.dFrictionDeceleration * dt))
             else
-                Paddle.speed = math.min(0, Paddle.speed + dt * 2)
+                Paddle.velocity.x = (math.min(0, paddleSpeed + Paddle.dFrictionDeceleration * dt))
             end
         else
-            Paddle.speed = utils.clamp(-1, Paddle.speed + dt * 3 * Paddle.acceleration, 1)
+            -- player-initiated speed change
+            Paddle.velocity.x = Utils.clamp(-1, paddleSpeed + Paddle.acceleration.x * Paddle.dAcceleration * dt, 1)
         end
 
-        Paddle.x = Paddle.x + dt * Paddle.speed * 500
+        Paddle.position:transform(Paddle.velocity * Paddle.dVelocity * dt)
+        Paddle.position.x = Utils.clamp(Paddle.width / 2, Paddle.position.x, Window.width - Paddle.width / 2)
 
-        Paddle.x = utils.clamp(0, Paddle.x, MAX_WIDTH - Paddle.width)
-        if Paddle.x + Paddle.width == MAX_WIDTH or Paddle.x == 0 then
-            Paddle.speed = -Paddle.speed * 0.7
+        if Paddle.position.x <= Paddle.width / 2 or Paddle.position.x >= Window.width - Paddle.width / 2 then
+            -- paddle outside window, perform a bounce
+            Paddle.velocity = Paddle.velocity * (-0.7)
+        end
+
+        -- calculate new ball position and check collisions
+        UpdateBall(dt)
+
+        -- simulate next collision
+        local extrapolatedPosition = Ball.position + Ball.velocity * 1000
+
+        NextCollision.position = false
+        NextCollision.object = false
+
+        NextCollision.position = Collisions.calculateBallPaddleCollision(Ball, extrapolatedPosition, Paddle)
+
+        if NextCollision.position then
+            NextCollision.object = Paddle
+        else
+            if Bricks[1] then
+                NextCollision.object, NextCollision.position, _ = Collisions.calculateBallBricksCollision(Ball, extrapolatedPosition, Bricks)
+            end
+
+            if not NextCollision.position then
+                NextCollision.position = Collisions.calculateBallWallsCollision(Ball, extrapolatedPosition, Window)
+            end
         end
     end
 end
 
 function love.draw()
     if GameState == GameStateEnum.MENU then
-        love.graphics.printf("Press ENTER to start game", 0, MAX_HEIGHT / 2, MAX_WIDTH, "center", 0, 1, 1, 0, 0, 0, 0)
+        love.graphics.printf("Press ENTER to start game", 0, Window.height / 2, Window.width,
+            "center", 0, 1, 1, 0, 0, 0, 0)
     elseif GameState == GameStateEnum.PLAYING then
-        iffy.drawSprite(Ball.name, Ball.x, Ball.y, 0, 1, 1)
-        iffy.drawSprite(Paddle.name, Paddle.x, Paddle.y, 0, 1, 1)
+        Sprites.draw(Ball)
+        Sprites.draw(Paddle)
+        -- Iffy.drawSprite(Ball.name, Ball.position.x, Ball.position.y, 0, 1, 1)
+        -- Iffy.drawSprite(Paddle.name, Paddle.position.x, Paddle.position.y, 0, 1, 1)
+
+        for _, brick in ipairs(Bricks) do
+            Sprites.draw(brick)
+            -- Iffy.drawSprite(brick.name, brick.position.x, brick.position.y, 0, 1, 1)
+        end
+    elseif GameState == GameStateEnum.WINNER then
+        love.graphics.printf("YOUR WINNER!!!\nPress ENTER to go back to menu", 0, Window.height / 2,
+            Window.width, "center", 0, 1, 1, 0, 0, 0, 0)
     elseif GameState == GameStateEnum.GAMEOVER then
-        love.graphics.printf("GAME OVER\nPress ENTER to go back to menu", 0, MAX_HEIGHT / 2, MAX_WIDTH, "center", 0, 1, 1, 0, 0, 0, 0)
+        love.graphics.printf("GAME OVER\nPress ENTER to go back to menu", 0, Window.height / 2,
+            Window.width, "center", 0, 1, 1, 0, 0, 0, 0)
+    end
+
+    if NextCollision.position then
+        love.graphics.setColor(1.0, 0.0, 0.0)
+
+        love.graphics.line(Ball.position.x, Ball.position.y, NextCollision.position.x, NextCollision.position.y)
+
+        if NextCollision.object then
+            love.graphics.rectangle("line", NextCollision.object.position.x - NextCollision.object.width / 2, NextCollision.object.position.y - NextCollision.object.height / 2, NextCollision.object.width, NextCollision.object.height)
+        end
+
+        love.graphics.setColor(1.0, 1.0, 1.0)
     end
 end

@@ -2,7 +2,8 @@
 	Iffy  : The SpriteSheet and Tileset helper library (handles Tilemaps as well)
 	Author: Neer
 	(https://github.com/YoungNeer/iffy)
-]] local iffy = {
+]]
+local iffy = {
     images = {}, -- the images that form the spritesheets
     spritesheets = {}, -- the sprites themselves
     cache = {}, -- to increase performance and provide easy access to sprites
@@ -55,7 +56,7 @@ end
 	The extensions supported by iffy. iffy supports only xml and csv format
 	So the "" and ".txt" should map to either one of those.
 ]]
-local metafileFormats = {"", ".txt", ".xml", ".csv"}
+local metafileFormats = { "", ".txt", ".xml", ".csv" }
 
 -- takes asset url and returns corresponding meta file url (if it exists)
 local function getmetafile(url)
@@ -82,18 +83,18 @@ end
 function iffy.newSprite(iname, name, x, y, width, height, sw, sh)
     if not sw and not iffy.images[iname] then
         error("Iffy Error! " ..
-                  "You must provide the size of the image in the last parameter " ..
-                  "in the function 'newSprite'")
+            "You must provide the size of the image in the last parameter " ..
+            "in the function 'newSprite'")
     end
     if iffy.images[iname] and not sw then sw = iffy.images[iname] end
-    if not sh then -- user provided an image?	
+    if not sh then -- user provided an image?
         sw, sh = sw:getDimensions()
     end
     if not iffy.spritesheets[iname] then iffy.spritesheets[iname] = {} end
     if not iffy.spritedata[iname] then iffy.spritedata[iname] = {} end
 
     iffy.spritesheets[iname][name] = love.graphics.newQuad(x, y, width, height, sw, sh)
-    table.insert(iffy.spritedata[iname], {name, x, y, width, height})
+    table.insert(iffy.spritedata[iname], { name, x, y, width, height })
     return iffy.spritesheets[iname][name]
 end
 
@@ -141,7 +142,7 @@ function iffy.newAtlas(name, url, metafile, sw, sh)
     else
         assert(type(name) == "string",
             "Iffy Error! You must pass atleast one parameter -" ..
-                "the URL of the spritesheet")
+            "the URL of the spritesheet")
         url = name
         metafile = getmetafile(url)
         name = removeExtension(url)
@@ -244,7 +245,7 @@ function iffy.newTileset(name, url, tw, th, mx, my, sw, sh)
         end
     end
     iffy.spritesheets[name] = t
-    iffy.tilesets[name] = {tw, th}
+    iffy.tilesets[name] = { tw, th }
     return t
 end
 
