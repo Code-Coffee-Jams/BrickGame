@@ -30,7 +30,7 @@ LeftVector = Vector.new(-1, 0)
 RightVector = -LeftVector
 
 -- global state
-GameState = GameStateEnum.PLAYING
+GameState = GameStateEnum.MENU
 
 -- images, sprites, game entities/objects
 Paddle = { -- single object
@@ -38,12 +38,12 @@ Paddle = { -- single object
     spriteName = "paddle",
     width = 104,
     height = 24,
-    position = false, -- vector
-    velocity = false, -- vector
-    acceleration = false, -- vector
+    position = Vector.new(),
+    velocity = Vector.new(),
+    acceleration = Vector.new(),
     dVelocity = 500,
-    dAcceleration = 3,
-    dFrictionDeceleration = 2,
+    dAcceleration = 5,
+    dFrictionDeceleration = 1.5,
 }
 
 Ball = { -- single object
@@ -52,9 +52,9 @@ Ball = { -- single object
     radius = 22 / 2,
     width = 22,
     height = 22,
-    position = false, -- vector
-    velocity = false, -- vector
-    dVelocity = 300,
+    position = Vector.new(),
+    velocity = Vector.new(),
+    dVelocity = 400,
 }
 
 Brick = { -- generic sprite used by multiple brick objects
@@ -156,9 +156,8 @@ function UpdateBall(dt)
         dt = dt * (1 - (collisionPoint - Ball.position):getLength() / dBallPosition:getLength())
         Ball.position = collisionPoint + normalVector * 0.01
 
-        -- equation taken from:
-        -- https://math.stackexchange.com/questions/13261/how-to-get-a-reflection-vector
-        Ball.velocity:transform(normalVector * (-2) * Ball.velocity:dotProduct(normalVector))
+        Ball.velocity = normalVector
+        -- Ball.velocity:transform(normalVector * (-2) * Ball.velocity:dotProduct(normalVector))
         -- GameState = GameStateEnum.MENU
 
         if dt > 0 then
@@ -276,17 +275,17 @@ end
 
 function love.draw()
     if GameState == GameStateEnum.MENU then
-        love.graphics.printf("Press ENTER to start game", 0, Window.height / 2, Window.width,
-            "center", 0, 1, 1, 0, 0, 0, 0)
+        local y0 = Window.height / 2
+
+        love.graphics.printf({ { 1.0, 0.0, 0.0, 1.0 }, "BRICK GAME" }, 0, 16, Window.width / 1.5, "center", 0, 1.5, 1.5, 0, 0, 0, 0)
+        love.graphics.printf("Use arrow keys to control the paddle and destroy all bricks with the ball", 0, y0 - 16, Window.width, "center", 0, 1, 1, 0, 0, 0, 0)
+        love.graphics.printf("Press ENTER to start the game", 0, y0 + 16, Window.width, "center", 0, 1, 1, 0, 0, 0, 0)
     elseif GameState == GameStateEnum.PLAYING then
         Sprites.draw(Ball)
         Sprites.draw(Paddle)
-        -- Iffy.drawSprite(Ball.name, Ball.position.x, Ball.position.y, 0, 1, 1)
-        -- Iffy.drawSprite(Paddle.name, Paddle.position.x, Paddle.position.y, 0, 1, 1)
 
         for _, brick in ipairs(Bricks) do
             Sprites.draw(brick)
-            -- Iffy.drawSprite(brick.name, brick.position.x, brick.position.y, 0, 1, 1)
         end
     elseif GameState == GameStateEnum.WINNER then
         love.graphics.printf("YOUR WINNER!!!\nPress ENTER to go back to menu", 0, Window.height / 2,
@@ -296,7 +295,7 @@ function love.draw()
             Window.width, "center", 0, 1, 1, 0, 0, 0, 0)
     end
 
-    if NextCollision.position then
+    if false and NextCollision.position then
         love.graphics.setColor(1.0, 0.0, 0.0)
 
         love.graphics.line(Ball.position.x, Ball.position.y, NextCollision.position.x, NextCollision.position.y)

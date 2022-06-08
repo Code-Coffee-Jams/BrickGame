@@ -141,6 +141,22 @@ function VectorMT.getNormalized(self)
     return copy
 end
 
+function VectorMT.reflect(self, normal)
+    assert(module.isVector(normal), "normal must be a vector")
+    assert(self:getLength() ~= 0, "zero-length vectors cannot be reflected")
+
+    -- equation taken from:
+    -- https://math.stackexchange.com/questions/13261/how-to-get-a-reflection-vector
+    return self:transform(normal * (-2) * self:dotProduct(normal))
+end
+
+function VectorMT.getReflected(self, normal)
+    local copy = self:copy()
+    copy:reflect(normal)
+
+    return copy
+end
+
 function VectorMT.dotProduct(self, other)
     assert(module.isVector(other), "other must be a vector")
 
