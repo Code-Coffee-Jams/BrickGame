@@ -14,10 +14,8 @@ end
 function module.draw(object)
     assert(type(object) == "table")
 
-    local spriteX = object.position.x - object.width / 2
-    local spriteY = object.position.y - object.height / 2
-
-    Iffy.drawSprite(object.spriteName, spriteX, spriteY, 0, 1, 1)
+    Iffy.drawSprite(object.spriteName, object.position.x, object.position.y, object.rotation or 0,
+        1, 1, object.width / 2, object.height / 2)
 
     return true
 end

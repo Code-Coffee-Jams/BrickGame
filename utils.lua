@@ -30,6 +30,19 @@ function module.appendToList(list, ...)
     return true
 end
 
+-- function module.mergeLists(targetList, otherList)
+--     assert(type(targetList) == "table")
+--     assert(type(otherList) == "table")
+
+--     local offset = #targetList
+
+--     for index, value in ipairs(otherList) do
+--         targetList[offset + index] = value
+--     end
+
+--     return targetList
+-- end
+
 function module.findMax(list)
     assert(type(list) == "table")
 
