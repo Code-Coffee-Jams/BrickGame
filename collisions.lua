@@ -147,10 +147,13 @@ local function calculateBallVerticesCollision(ball, newBallPosition, vertices)
             -- calculate normal
             local normal
 
-            local d0 = vertex.normal0:dotProduct(ball.velocity)
-            local d1 = vertex.normal1:dotProduct(ball.velocity)
+            local d0 = math.abs(vertex.normal0:dotProduct(ball.velocity))
+            local d1 = math.abs(vertex.normal1:dotProduct(ball.velocity))
 
-            if math.abs(d0) >= math.abs(d1) then
+            if math.abs(d0 - d1) < Vector.ZERO then
+                normal = vertex.normal1 + vertex.normal0
+                normal:normalize()
+            elseif math.abs(d0) >= math.abs(d1) then
                 normal = vertex.normal0
             else
                 normal = vertex.normal1
@@ -173,10 +176,10 @@ local function calculateBallBrickCollision(ball, newBallPosition, brick)
 
     -- list of brick vertices
     local vertices = { -- vertices listed clockwise, below names are for brick.rotation == 0
-        { pos = brick.position + Vector.new(-halfWidth, -halfHeight):getRotated(brick.rotation) }, -- bottom left
-        { pos = brick.position + Vector.new(-halfWidth, halfHeight):getRotated(brick.rotation) }, -- top left
-        { pos = brick.position + Vector.new(halfWidth, halfHeight):getRotated(brick.rotation) }, -- top right
-        { pos = brick.position + Vector.new(halfWidth, -halfHeight):getRotated(brick.rotation) }, -- bottom right
+        { pos = brick.position + Vector.new(-halfWidth, halfHeight):getRotated(brick.rotation) }, -- bottom left
+        { pos = brick.position + Vector.new(-halfWidth, -halfHeight):getRotated(brick.rotation) }, -- top left
+        { pos = brick.position + Vector.new(halfWidth, -halfHeight):getRotated(brick.rotation) }, -- top right
+        { pos = brick.position + Vector.new(halfWidth, halfHeight):getRotated(brick.rotation) }, -- bottom right
     }
 
     -- list of brick edges
@@ -185,9 +188,9 @@ local function calculateBallBrickCollision(ball, newBallPosition, brick)
     -- calculate edges and normals
     for index, vertex in ipairs(vertices) do
         local pos0 = vertex.pos
-        local pos1 = vertices[index % 4 + 1].pos
+        local pos1 = vertices[index % 4 + 1].pos -- index + 1 looped to (1, 4)
         local normal = (pos1 - pos0)
-        normal:rotate(math.pi / 2)
+        normal:rotate(-math.pi / 2)
         normal:normalize()
 
         edges[index] = {
@@ -200,7 +203,7 @@ local function calculateBallBrickCollision(ball, newBallPosition, brick)
     -- append vertices with normals for both edges coming out of it
     for index, vertex in ipairs(vertices) do
         vertex.normal0 = edges[index].normal
-        vertex.normal1 = edges[index % 4 + 1].normal
+        vertex.normal1 = edges[(index - 2) % 4 + 1].normal -- index - 1 looped to (1, 4)
     end
 
     local collisions = {
