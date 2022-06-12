@@ -86,7 +86,7 @@ local function createBrick(x, y, rotation)
 end
 
 local function resetBall()
-    ball.position:setXY(window.width / 2, paddle.position.y - (ball.height + 10))
+    ball.position:setXY(window.width / 2, paddle.position.y - (ball.height + 8))
     ball.velocity:setXY(0, 1)
 end
 
