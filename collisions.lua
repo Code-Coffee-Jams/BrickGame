@@ -1,4 +1,3 @@
-Inspect = require("libraries.inspect")
 Vector = require("vector")
 
 local left = Vector.new(-1, 0)
