@@ -53,6 +53,7 @@ local paddle = {
     dVelocity = 500,
     dAcceleration = 5,
     dFrictionDeceleration = 1.5,
+    hit_sound = love.audio.newSource("assets/sounds/soft-bang.ogg", "static")
 }
 
 local ball = {
@@ -65,6 +66,10 @@ local ball = {
     velocity = Vector.new(),
     dVelocity = 300,
 }
+
+
+local wall_sound = love.audio.newSource("assets/sounds/metal.wav", "static")
+local wall_sound_2 = love.audio.newSource("assets/sounds/metal.wav", "static") -- in case one wall sound is played during second collision
 
 -- template for bricks
 local brickTemplate = {
@@ -141,12 +146,16 @@ local function createBrick(x, y, rotation)
     assert(type(y) == "number")
     if rotation ~= nil then assert(type(rotation) == "number") else rotation = 0.0 end
 
+    local sound = love.audio.newSource("assets/sounds/soft-bang.ogg", "static")
+    sound:setPitch(0.5)
+
     return {
         spriteName = brickTemplate.spriteName,
         width = brickTemplate.width,
         height = brickTemplate.height,
         position = Vector.new(x, y),
         rotation = rotation,
+        hit_sound = sound
     }
 end
 
@@ -217,8 +226,21 @@ local function updateBall(dt)
         return
     end
 
-    local collisionPoint, newVelocity, hitElement = Collisions.calculateNextCollision(ball,
+    local collisionPoint, newVelocity, hitElement, collision_type = Collisions.calculateNextCollision(ball,
         newBallPosition, bricks, paddle, window)
+
+    if collision_type == Collisions.collision_types.Wall then
+        if not wall_sound:isPlaying() then
+            wall_sound:play()
+        else
+            wall_sound_2:play()
+        end
+
+    elseif collision_type == Collisions.collision_types.Brick then
+        hitElement.hit_sound:play()
+    elseif collision_type == Collisions.collision_types.Paddle then
+        paddle.hit_sound:play()
+    end
 
     if not collisionPoint then
         -- no collision detected, simply move ball

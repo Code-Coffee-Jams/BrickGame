@@ -5,7 +5,10 @@ local up = Vector.new(0, -1)
 local right = -left
 local down = -up
 
+local collision_types = { Wall = 1, Brick = 2, Paddle = 3}
+
 local module = {}
+module.collision_types = collision_types
 
 local function findClosestCollision(ballPosition, collisions)
     local closestCollision
@@ -59,7 +62,7 @@ local function calculateLineSegmentsIntersectionPoint(posA0, posA1, posB0, posB1
     end
 end
 
-local function calculateBallEdgesCollision(ball, newBallPosition, edges)
+local function calculateBallEdgesCollision(ball, newBallPosition, edges, collision_type)
     -- calculate collisions between ball and each edge and return the one closest to the ball
     local collisions = {}
     local index = 0
@@ -71,7 +74,7 @@ local function calculateBallEdgesCollision(ball, newBallPosition, edges)
 
         if collisionPoint then
             index = index + 1
-            collisions[index] = { point = collisionPoint, normal = edge.normal }
+            collisions[index] = { point = collisionPoint, normal = edge.normal, type = collision_type }
         end
     end
 
@@ -133,7 +136,7 @@ local function calculateLineSegmentCircleIntersectionPoint(pos0, pos1, origin, r
     return pos0 + (pos1 - pos0) * t
 end
 
-local function calculateBallVerticesCollision(ball, newBallPosition, vertices)
+local function calculateBallVerticesCollision(ball, newBallPosition, vertices, collision_type)
     -- calculate collisions between ball and each vertex and return the one closest to the ball
     local collisions = {}
     local index = 0
@@ -159,7 +162,7 @@ local function calculateBallVerticesCollision(ball, newBallPosition, vertices)
             end
 
             index = index + 1
-            collisions[index] = { point = collisionPoint, normal = normal }
+            collisions[index] = { point = collisionPoint, normal = normal, type = collision_type}
         end
     end
 
@@ -206,8 +209,8 @@ local function calculateBallBrickCollision(ball, newBallPosition, brick)
     end
 
     local collisions = {
-        calculateBallEdgesCollision(ball, newBallPosition, edges),
-        calculateBallVerticesCollision(ball, newBallPosition, vertices),
+        calculateBallEdgesCollision(ball, newBallPosition, edges, collision_types.Brick),
+        calculateBallVerticesCollision(ball, newBallPosition, vertices, collision_types.Brick),
     }
 
     return findClosestCollision(ball.position, collisions)
@@ -257,7 +260,7 @@ local function calculateBallPaddleCollisions(ball, newBallPosition, paddle)
         local xOffset = (collisionPoint.x - paddle.position.x) / (paddle.width / 2)
         newAngle = math.rad(-90 + angleRange * xOffset)
 
-        table.insert(collisions, { point = collisionPoint, newAngle = newAngle })
+        table.insert(collisions, { point = collisionPoint, newAngle = newAngle, type = collision_types.Paddle })
     end
 
     -- corner collisions
@@ -302,7 +305,7 @@ local function calculateBallWallsCollisions(ball, newBallPosition, window)
         { pos0 = topRightCorner, pos1 = bottomRightCorner, normal = left }, -- right wall
     }
 
-    return calculateBallEdgesCollision(ball, newBallPosition, walls)
+    return calculateBallEdgesCollision(ball, newBallPosition, walls, collision_types.Wall)
 end
 
 function module.calculateNextCollision(ball, newBallPosition, bricks, paddle, window)
@@ -329,7 +332,7 @@ function module.calculateNextCollision(ball, newBallPosition, bricks, paddle, wi
         error()
     end
 
-    return collision.point, newVelocity, collision.hitElement
+    return collision.point, newVelocity, collision.hitElement, collision.type
 end
 
 return module
