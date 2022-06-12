@@ -23,8 +23,9 @@ local GameStateEnum = {
     MENU = 0,
     STARTING = 1,
     PLAYING = 2,
-    WINNER = 3,
-    GAMEOVER = 4,
+    FINISHED = 3,
+    WINNER = 4,
+    GAMEOVER = 5,
 }
 
 -- paddle movement directions
@@ -33,6 +34,9 @@ local right = -left
 
 -- global state
 local gameState = GameStateEnum.MENU
+local level = 1
+local finishTimer = 0
+local finishDelay = 3 -- delay between finishing a level and starting a new one; in seconds
 local livesLeft = 0
 
 -- images, sprites, game entities/objects
@@ -73,6 +77,65 @@ local brickTemplate = {
 -- list of actual brick objects used in game
 local bricks = {}
 
+-- list of levels
+local HPI = math.pi / 2
+local QPI = math.pi / 4
+local SQ2 = math.sqrt(2)
+
+local levels = {
+    [1] = {
+        { -3, 0, 0 },
+        { -2, 0, 0 },
+        { -1, 0, 0 },
+        { 0, 0, 0 },
+        { 1, 0, 0 },
+        { 2, 0, 0 },
+        { 3, 0, 0 },
+        { -3, -1, 0 },
+        { -2, -1, 0 },
+        { -1, -1, 0 },
+        { 0, -1, 0 },
+        { 1, -1, 0 },
+        { 2, -1, 0 },
+        { 3, -1, 0 },
+    },
+    [2] = {
+        { -3, 0, HPI },
+        { -2.25, 0.5, 0 },
+        { -2.25, -0.5, 0 },
+        { -1.5, 0, HPI },
+        { -0.75, 0.5, 0 },
+        { -0.75, -0.5, 0 },
+        { 0, 0, HPI },
+        { 0.75, 0.5, 0 },
+        { 0.75, -0.5, 0 },
+        { 1.5, 0, HPI },
+        { 2.25, 0.5, 0 },
+        { 2.25, -0.5, 0 },
+        { 3, 0, HPI },
+    },
+    [3] = {
+        { -2 * SQ2, 0, QPI },
+        { -1.5 * SQ2, 0, QPI },
+        { -SQ2, 0, QPI },
+        { -SQ2 / 2, 0, QPI },
+        { 0, 0, QPI },
+        { SQ2 / 2, 0, QPI },
+        { SQ2, 0, QPI },
+        { 1.5 * SQ2, 0, QPI },
+        { 2 * SQ2, 0, QPI },
+        { -2 * SQ2, -SQ2, QPI },
+        { -1.5 * SQ2, -SQ2, QPI },
+        { -SQ2, -SQ2, QPI },
+        { -SQ2 / 2, -SQ2, QPI },
+        { 0, -SQ2, QPI },
+        { SQ2 / 2, -SQ2, QPI },
+        { SQ2, -SQ2, QPI },
+        { 1.5 * SQ2, -SQ2, QPI },
+        { 2 * SQ2, -SQ2, QPI },
+    },
+}
+
 local function createBrick(x, y, rotation)
     assert(type(x) == "number")
     assert(type(y) == "number")
@@ -102,6 +165,26 @@ local function resetPaddle()
     if love.keyboard.isDown(KeyEnum.RIGHT) then paddle.acceleration:transform(right) end
 end
 
+local function loadLevel(level)
+    assert(levels[level] ~= nil)
+    assert(levels[level][1] ~= nil)
+
+    bricks = {}
+
+    local centerX = window.width / 2
+    local centerY = window.height / 3
+
+    for index, brick in ipairs(levels[level]) do
+        local x = centerX + brick[1] * brickTemplate.width
+        local y = centerY + brick[2] * brickTemplate.height
+        local r = brick[3]
+
+        bricks[index] = createBrick(x, y, r)
+    end
+
+    return true
+end
+
 local function resetGame()
     -- setup global state
     livesLeft = 3
@@ -111,19 +194,7 @@ local function resetGame()
     resetBall()
 
     -- setup bricks
-    local centerX = window.width / 2
-    local centerY = window.height / 2 - 100
-
-    bricks = {}
-    for dx = -3, 3 do
-        for dy = -3, 0 do
-            local x = centerX + dx * brickTemplate.width
-            local y = centerY + dy * brickTemplate.height
-            local r = dx / 3.5 * math.rad(22.5)
-
-            table.insert(bricks, createBrick(x, y, r))
-        end
-    end
+    loadLevel(level)
 end
 
 local function updateBall(dt)
@@ -166,7 +237,7 @@ local function updateBall(dt)
 
             -- check if it was the last brick
             if not bricks[1] then
-                gameState = GameStateEnum.WINNER
+                gameState = GameStateEnum.FINISHED
                 return true
             end
         end
@@ -290,6 +361,21 @@ function love.update(dt)
         -- calculate new ball position and check collisions
         updateBall(dt)
     end
+
+    if gameState == GameStateEnum.FINISHED then
+        finishTimer = finishTimer + dt
+        if finishTimer >= finishDelay then
+            finishTimer = 0
+
+            if level < #levels then
+                level = level + 1
+                gameState = GameStateEnum.STARTING
+                resetGame()
+            else
+                gameState = GameStateEnum.WINNER
+            end
+        end
+    end
 end
 
 function love.draw()
@@ -299,7 +385,7 @@ function love.draw()
         love.graphics.printf({ { 1.0, 0.0, 0.0, 1.0 }, "BRICK GAME" }, 0, 16, window.width / 1.5, "center", 0, 1.5, 1.5, 0, 0, 0, 0)
         love.graphics.printf("Use arrow keys to control the paddle and destroy all bricks with the ball", 0, y0 - 16, window.width, "center", 0, 1, 1, 0, 0, 0, 0)
         love.graphics.printf("Press ENTER to start the game", 0, y0 + 16, window.width, "center", 0, 1, 1, 0, 0, 0, 0)
-    elseif gameState == GameStateEnum.STARTING or gameState == GameStateEnum.PLAYING then
+    elseif gameState == GameStateEnum.STARTING or gameState == GameStateEnum.PLAYING or gameState == GameStateEnum.FINISHED then
         Sprites.draw(ball)
         Sprites.draw(paddle)
 
@@ -311,6 +397,8 @@ function love.draw()
 
         if gameState == GameStateEnum.STARTING then
             love.graphics.printf("Press SPACE to launch ball", 0, window.height / 2, window.width, "center", 0, 1, 1, 0, 0, 0, 0)
+        elseif gameState == GameStateEnum.FINISHED then
+            love.graphics.printf(string.format("You won level %d!", level), 0, window.height / 2, window.width, "center", 0, 1, 1, 0, 0, 0, 0)
         end
     elseif gameState == GameStateEnum.WINNER then
         love.graphics.printf("YOUR WINNER!!!\nPress ENTER to go back to menu", 0, window.height / 2,
@@ -319,16 +407,4 @@ function love.draw()
         love.graphics.printf("GAME OVER\nPress ENTER to go back to menu", 0, window.height / 2,
             window.width, "center", 0, 1, 1, 0, 0, 0, 0)
     end
-
-    -- if false and NextCollision.position then
-    --     love.graphics.setColor(1.0, 0.0, 0.0)
-
-    --     love.graphics.line(Ball.position.x, Ball.position.y, NextCollision.position.x, NextCollision.position.y)
-
-    --     if NextCollision.object then
-    --         love.graphics.rectangle("line", NextCollision.object.position.x - NextCollision.object.width / 2, NextCollision.object.position.y - NextCollision.object.height / 2, NextCollision.object.width, NextCollision.object.height)
-    --     end
-
-    --     love.graphics.setColor(1.0, 1.0, 1.0)
-    -- end
 end
