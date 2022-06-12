@@ -5,8 +5,8 @@ Collisions = require("collisions")
 
 -- screen size
 local window = {
-    width = false,
-    height = false,
+    width = 800,
+    height = 600,
 }
 
 -- keyboard key names
@@ -36,6 +36,8 @@ local gameState = GameStateEnum.MENU
 local livesLeft = 0
 
 -- images, sprites, game entities/objects
+local PADDLE_Y_OFFSET = 64
+
 local paddle = {
     imagePath = "assets/png/paddleRed.png",
     spriteName = "paddle",
@@ -91,7 +93,7 @@ local function resetBall()
 end
 
 local function resetPaddle()
-    paddle.position:setXY(window.width / 2, window.height - 100)
+    paddle.position:setXY(window.width / 2, window.height - PADDLE_Y_OFFSET)
     paddle.velocity:setXY(0, 0)
     paddle.acceleration:setXY(0, 0)
 
@@ -200,8 +202,8 @@ function love.load()
         Sprites.init(object)
     end
 
-    -- save game window size
-    window.width, window.height = love.window.getMode()
+    -- set window size
+    love.window.setMode(window.width, window.height, {})
 
     -- setup game objects
     resetGame()
