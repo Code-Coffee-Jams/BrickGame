@@ -30,7 +30,7 @@ LeftVector = Vector.new(-1, 0)
 RightVector = -LeftVector
 
 -- global state
-GameState = GameStateEnum.PLAYING
+GameState = GameStateEnum.MENU
 
 -- images, sprites, game entities/objects
 Paddle = { -- single object
@@ -38,12 +38,12 @@ Paddle = { -- single object
     spriteName = "paddle",
     width = 104,
     height = 24,
-    position = false, -- vector
-    velocity = false, -- vector
-    acceleration = false, -- vector
+    position = Vector.new(),
+    velocity = Vector.new(),
+    acceleration = Vector.new(),
     dVelocity = 500,
-    dAcceleration = 3,
-    dFrictionDeceleration = 2,
+    dAcceleration = 5,
+    dFrictionDeceleration = 1.5,
 }
 
 Ball = { -- single object
@@ -52,8 +52,8 @@ Ball = { -- single object
     radius = 22 / 2,
     width = 22,
     height = 22,
-    position = false, -- vector
-    velocity = false, -- vector
+    position = Vector.new(),
+    velocity = Vector.new(),
     dVelocity = 300,
 }
 
@@ -71,7 +71,7 @@ NextCollision = {
     object = false,
 }
 
-function CreateBrick(centerX, centerY)
+function CreateBrick(centerX, centerY, rotation)
     local position = Vector.new(centerX - Brick.width / 2, centerY - Brick.height / 2)
 
     return {
@@ -79,6 +79,7 @@ function CreateBrick(centerX, centerY)
         width = Brick.width,
         height = Brick.height,
         position = position,
+        rotation = rotation,
     }
 end
 
@@ -106,7 +107,11 @@ function ResetGame()
     Bricks = {}
     for dx = -3, 4 do
         for dy = -3, 0 do
-            table.insert(Bricks, CreateBrick(centerX + dx * Brick.width, centerY + dy * Brick.height))
+            local x = centerX + dx * Brick.width
+            local y = centerY + dy * Brick.height
+            local r = (dx - 0.5) / 3.5 * math.rad(22.5)
+
+            table.insert(Bricks, CreateBrick(x, y, r))
         end
     end
 end
@@ -121,49 +126,46 @@ function UpdateBall(dt)
         GameState = GameStateEnum.GAMEOVER
     end
 
-    local hitBrick, collisionPoint, normalVector
-
-    -- check paddle collision
-    collisionPoint, normalVector = Collisions.calculateBallPaddleCollision(Ball, newBallPosition, Paddle)
+    local collisionPoint, newVelocity, hitElement = Collisions.calculateNextCollision(Ball,
+        newBallPosition, Bricks, Paddle, Window)
 
     if not collisionPoint then
-        -- check bricks collisions
-
-        hitBrick, collisionPoint, normalVector = Collisions.calculateBallBricksCollision(Ball, newBallPosition, Bricks)
-
-        if hitBrick then
+        -- no collision detected, simply move ball
+        Ball.position:transform(dBallPosition)
+        return true
+    else
+        if hitElement then
+            -- hit a brick, remove it from list
             for index, brick in ipairs(Bricks) do
-                if brick == hitBrick then
+                if brick == hitElement then
                     table.remove(Bricks, index)
                     break
                 end
             end
 
+            -- check if it was the last brick
             if not Bricks[1] then
                 GameState = GameStateEnum.WINNER
+                return true
             end
-        else
-            -- check wall collision
-            collisionPoint, normalVector = Collisions.calculateBallWallsCollision(Ball, newBallPosition, Window)
         end
-    end
 
-    if not collisionPoint then
-        Ball.position:transform(dBallPosition)
-        return true
-    else
-        -- call this function recursively, reducing dt
-        dt = dt * (1 - (collisionPoint - Ball.position):getLength() / dBallPosition:getLength())
-        Ball.position = collisionPoint + normalVector * 0.01
+        -- reflect ball
+        Ball.velocity = newVelocity
 
-        -- equation taken from:
-        -- https://math.stackexchange.com/questions/13261/how-to-get-a-reflection-vector
-        Ball.velocity:transform(normalVector * (-2) * Ball.velocity:dotProduct(normalVector))
-        -- GameState = GameStateEnum.MENU
+        -- calculate remaining dt after the collision
+        local distanceTravelled = (collisionPoint - Ball.position):getLength()
+        dt = dt * (1 - distanceTravelled / dBallPosition:getLength())
+
+        -- move ball to collision point and add a tiny nudge forwards to avoid repeated collisions
+        Ball.position = collisionPoint + newVelocity * 0.001
 
         if dt > 0 then
-            UpdateBall(dt)
+            -- call this function recursively with reduced dt
+            return UpdateBall(dt)
         end
+
+        return true
     end
 end
 
@@ -253,40 +255,40 @@ function love.update(dt)
         UpdateBall(dt)
 
         -- simulate next collision
-        local extrapolatedPosition = Ball.position + Ball.velocity * 1000
+        -- local extrapolatedPosition = Ball.position + Ball.velocity * 1000
 
-        NextCollision.position = false
-        NextCollision.object = false
+        -- NextCollision.position = false
+        -- NextCollision.object = false
 
-        NextCollision.position = Collisions.calculateBallPaddleCollision(Ball, extrapolatedPosition, Paddle)
+        -- NextCollision.position = Collisions.calculateBallPaddleCollision(Ball, extrapolatedPosition, Paddle)
 
-        if NextCollision.position then
-            NextCollision.object = Paddle
-        else
-            if Bricks[1] then
-                NextCollision.object, NextCollision.position, _ = Collisions.calculateBallBricksCollision(Ball, extrapolatedPosition, Bricks)
-            end
+        -- if NextCollision.position then
+        --     NextCollision.object = Paddle
+        -- else
+        --     if Bricks[1] then
+        --         NextCollision.object, NextCollision.position, _ = Collisions.calculateBallBricksCollision(Ball, extrapolatedPosition, Bricks)
+        --     end
 
-            if not NextCollision.position then
-                NextCollision.position = Collisions.calculateBallWallsCollision(Ball, extrapolatedPosition, Window)
-            end
-        end
+        --     if not NextCollision.position then
+        --         NextCollision.position = Collisions.calculateBallWallsCollision(Ball, extrapolatedPosition, Window)
+        --     end
+        -- end
     end
 end
 
 function love.draw()
     if GameState == GameStateEnum.MENU then
-        love.graphics.printf("Press ENTER to start game", 0, Window.height / 2, Window.width,
-            "center", 0, 1, 1, 0, 0, 0, 0)
+        local y0 = Window.height / 2
+
+        love.graphics.printf({ { 1.0, 0.0, 0.0, 1.0 }, "BRICK GAME" }, 0, 16, Window.width / 1.5, "center", 0, 1.5, 1.5, 0, 0, 0, 0)
+        love.graphics.printf("Use arrow keys to control the paddle and destroy all bricks with the ball", 0, y0 - 16, Window.width, "center", 0, 1, 1, 0, 0, 0, 0)
+        love.graphics.printf("Press ENTER to start the game", 0, y0 + 16, Window.width, "center", 0, 1, 1, 0, 0, 0, 0)
     elseif GameState == GameStateEnum.PLAYING then
         Sprites.draw(Ball)
         Sprites.draw(Paddle)
-        -- Iffy.drawSprite(Ball.name, Ball.position.x, Ball.position.y, 0, 1, 1)
-        -- Iffy.drawSprite(Paddle.name, Paddle.position.x, Paddle.position.y, 0, 1, 1)
 
         for _, brick in ipairs(Bricks) do
             Sprites.draw(brick)
-            -- Iffy.drawSprite(brick.name, brick.position.x, brick.position.y, 0, 1, 1)
         end
     elseif GameState == GameStateEnum.WINNER then
         love.graphics.printf("YOUR WINNER!!!\nPress ENTER to go back to menu", 0, Window.height / 2,
@@ -296,7 +298,7 @@ function love.draw()
             Window.width, "center", 0, 1, 1, 0, 0, 0, 0)
     end
 
-    if NextCollision.position then
+    if false and NextCollision.position then
         love.graphics.setColor(1.0, 0.0, 0.0)
 
         love.graphics.line(Ball.position.x, Ball.position.y, NextCollision.position.x, NextCollision.position.y)

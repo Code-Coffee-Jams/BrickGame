@@ -24,11 +24,7 @@ end
 
 function module.fromAngle(angle, length)
     assert(type(angle) == "number", "angle must be a number")
-    if length ~= nil then
-        assert(type(length) == "number", "length must be a number")
-    else
-        length = 1.0
-    end
+    if length ~= nil then assert(type(length) == "number", "length must be a number") else length = 1.0 end
 
     return module.new(math.cos(angle) * length, math.sin(angle) * length)
 end
@@ -115,6 +111,8 @@ function VectorMT.getAngle(self)
 end
 
 function VectorMT.setAngle(self, newAngle)
+    assert(type(newAngle) == "number", "angle must be a number")
+
     local length = self:getLength()
     assert(length ~= 0, "cannot directly set direction angle of a zero-length vector")
 
@@ -122,6 +120,19 @@ function VectorMT.setAngle(self, newAngle)
     self.y = math.sin(newAngle) * length
 
     return true
+end
+
+function VectorMT.rotate(self, angle)
+    assert(type(angle) == "number", "angle must be a number")
+
+    return self:setAngle(self:getAngle() + angle)
+end
+
+function VectorMT.getRotated(self, angle)
+    local copy = self:copy()
+    copy:rotate(angle)
+
+    return copy
 end
 
 function VectorMT.normalize(self)
@@ -137,6 +148,22 @@ end
 function VectorMT.getNormalized(self)
     local copy = self:copy()
     copy:normalize()
+
+    return copy
+end
+
+function VectorMT.reflect(self, normal)
+    assert(module.isVector(normal), "normal must be a vector")
+    assert(self:getLength() ~= 0, "zero-length vectors cannot be reflected")
+
+    -- equation taken from:
+    -- https://math.stackexchange.com/questions/13261/how-to-get-a-reflection-vector
+    return self:transform(normal * (-2) * self:dotProduct(normal))
+end
+
+function VectorMT.getReflected(self, normal)
+    local copy = self:copy()
+    copy:reflect(normal)
 
     return copy
 end
@@ -177,42 +204,6 @@ function VectorMT.getDistanceTo(self, other)
     assert(module.isVector(other), "other must be a vector")
 
     return euclideanNorm(self.x - other.x, self.y - other.y)
-end
-
-function module.getIntersectionPoint(vectorA0, vectorA1, vectorB0, vectorB1)
-    assert(module.isVector(vectorA0), "vectorA0 must be a vector")
-    assert(module.isVector(vectorA1), "vectorA1 must be a vector")
-    assert(module.isVector(vectorB0), "vectorB0 must be a vector")
-    assert(module.isVector(vectorB1), "vectorB1 must be a vector")
-
-    -- algorithm and variable names taken from:
-    -- https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
-    -- p == vectorA0
-    -- q == vectorB0
-    local r = vectorA1 - vectorA0
-    local s = vectorB1 - vectorB0
-
-    if r:getLength() == 0 or s:getLength() == 0 then
-        return false
-    end
-
-    local rscp = r:crossProduct(s)
-
-    if math.abs(rscp) < module.ZERO then
-        -- parallel
-        return false
-    end
-
-    local qp = (vectorB0 - vectorA0)
-
-    local t = qp:crossProduct(s) / rscp
-    local u = qp:crossProduct(r) / rscp
-
-    if t >= 0 and t <= 1 and u >= 0 and u <= 1 then
-        return vectorA0 + r * t
-    else
-        return false
-    end
 end
 
 return module
