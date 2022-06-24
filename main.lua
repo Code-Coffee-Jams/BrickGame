@@ -284,7 +284,7 @@ end
 function love.load()
     -- init random seed
     math.randomseed(os.time())
-    wallSound = love.audio.newSource("assets/sounds/soft-bang.ogg", "static") -- in case one wall sound is played during second collision
+    wallSound = love.audio.newSource("assets/sounds/soft-bang.ogg", "static")
     wallSound2 = love.audio.newSource("assets/sounds/soft-bang.ogg", "static") -- in case one wall sound is played during second collision
     local wallsoundPitch = 5.5
     wallSound:setPitch(wallsoundPitch)
