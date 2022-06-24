@@ -208,7 +208,7 @@ end
 
 local function updateBall(dt)
     -- calculate ball position after this update
-    local dBallPosition = ball.velocity:copy() * ball.dVelocity * dt
+    local dBallPosition = ball.velocity * ball.dVelocity * dt
     local newBallPosition = ball.position + dBallPosition
 
     -- check ball outside playing area
