@@ -53,7 +53,7 @@ local paddle = {
     dVelocity = 500,
     dAcceleration = 5,
     dFrictionDeceleration = 1.5,
-    hit_sound = love.audio.newSource("assets/sounds/soft-bang.ogg", "static")
+    hitSound = love.audio.newSource("assets/sounds/soft-bang.ogg", "static")
 }
 
 local ball = {
@@ -68,8 +68,8 @@ local ball = {
 }
 
 
-local wall_sound = love.audio.newSource("assets/sounds/metal.wav", "static")
-local wall_sound_2 = love.audio.newSource("assets/sounds/metal.wav", "static") -- in case one wall sound is played during second collision
+local wallSound = nil
+local wallSound2 = nil
 
 -- template for bricks
 local brickTemplate = {
@@ -155,7 +155,7 @@ local function createBrick(x, y, rotation)
         height = brickTemplate.height,
         position = Vector.new(x, y),
         rotation = rotation,
-        hit_sound = sound
+        hitSound = sound
     }
 end
 
@@ -226,21 +226,9 @@ local function updateBall(dt)
         return
     end
 
-    local collisionPoint, newVelocity, hitElement, collision_type = Collisions.calculateNextCollision(ball,
+    local collisionPoint, newVelocity, hitElement, collisionType = Collisions.calculateNextCollision(ball,
         newBallPosition, bricks, paddle, window)
 
-    if collision_type == Collisions.collision_types.Wall then
-        if not wall_sound:isPlaying() then
-            wall_sound:play()
-        else
-            wall_sound_2:play()
-        end
-
-    elseif collision_type == Collisions.collision_types.Brick then
-        hitElement.hit_sound:play()
-    elseif collision_type == Collisions.collision_types.Paddle then
-        paddle.hit_sound:play()
-    end
 
     if not collisionPoint then
         -- no collision detected, simply move ball
@@ -248,6 +236,16 @@ local function updateBall(dt)
         ball.position:transform(dBallPosition)
         return true
     else
+
+        if collisionType == Collisions.TypeEnum.WALL then
+            if wallSound:isPlaying() then wallSound2:play() else wallSound:play() end
+        elseif collisionType == Collisions.TypeEnum.BRICK then
+            hitElement.hitSound:play()
+        elseif collisionType == Collisions.TypeEnum.PADDLE then
+            paddle.hitSound:play()
+        end
+
+
         if hitElement then
             -- hit a brick, remove it from list
             for index, brick in ipairs(bricks) do
@@ -286,6 +284,11 @@ end
 function love.load()
     -- init random seed
     math.randomseed(os.time())
+    wallSound = love.audio.newSource("assets/sounds/soft-bang.ogg", "static") -- in case one wall sound is played during second collision
+    wallSound2 = love.audio.newSource("assets/sounds/soft-bang.ogg", "static") -- in case one wall sound is played during second collision
+    local wallsoundPitch = 5.5
+    wallSound:setPitch(wallsoundPitch)
+    wallSound2:setPitch(wallsoundPitch)
 
     -- init bigger font
     love.graphics.setFont(love.graphics.newFont(20))
