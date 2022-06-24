@@ -5,7 +5,14 @@ local up = Vector.new(0, -1)
 local right = -left
 local down = -up
 
+local TypeEnum = {
+    WALL = 1,
+    BRICK = 2,
+    PADDLE = 3
+}
+
 local module = {}
+module.TypeEnum = TypeEnum
 
 local function findClosestCollision(ballPosition, collisions)
     local closestCollision
@@ -59,7 +66,7 @@ local function calculateLineSegmentsIntersectionPoint(posA0, posA1, posB0, posB1
     end
 end
 
-local function calculateBallEdgesCollision(ball, newBallPosition, edges)
+local function calculateBallEdgesCollision(ball, newBallPosition, edges, collisionType)
     -- calculate collisions between ball and each edge and return the one closest to the ball
     local collisions = {}
     local index = 0
@@ -71,7 +78,7 @@ local function calculateBallEdgesCollision(ball, newBallPosition, edges)
 
         if collisionPoint then
             index = index + 1
-            collisions[index] = { point = collisionPoint, normal = edge.normal }
+            collisions[index] = { point = collisionPoint, normal = edge.normal, type = collisionType }
         end
     end
 
@@ -133,7 +140,7 @@ local function calculateLineSegmentCircleIntersectionPoint(pos0, pos1, origin, r
     return pos0 + (pos1 - pos0) * t
 end
 
-local function calculateBallVerticesCollision(ball, newBallPosition, vertices)
+local function calculateBallVerticesCollision(ball, newBallPosition, vertices, collisionType)
     -- calculate collisions between ball and each vertex and return the one closest to the ball
     local collisions = {}
     local index = 0
@@ -159,7 +166,7 @@ local function calculateBallVerticesCollision(ball, newBallPosition, vertices)
             end
 
             index = index + 1
-            collisions[index] = { point = collisionPoint, normal = normal }
+            collisions[index] = { point = collisionPoint, normal = normal, type = collisionType}
         end
     end
 
@@ -206,8 +213,8 @@ local function calculateBallBrickCollision(ball, newBallPosition, brick)
     end
 
     local collisions = {
-        calculateBallEdgesCollision(ball, newBallPosition, edges),
-        calculateBallVerticesCollision(ball, newBallPosition, vertices),
+        calculateBallEdgesCollision(ball, newBallPosition, edges, TypeEnum.BRICK),
+        calculateBallVerticesCollision(ball, newBallPosition, vertices, TypeEnum.BRICK),
     }
 
     return findClosestCollision(ball.position, collisions)
@@ -257,7 +264,7 @@ local function calculateBallPaddleCollisions(ball, newBallPosition, paddle)
         local xOffset = (collisionPoint.x - paddle.position.x) / (paddle.width / 2)
         newAngle = math.rad(-90 + angleRange * xOffset)
 
-        table.insert(collisions, { point = collisionPoint, newAngle = newAngle })
+        table.insert(collisions, { point = collisionPoint, newAngle = newAngle, type = TypeEnum.PADDLE })
     end
 
     -- corner collisions
@@ -269,7 +276,7 @@ local function calculateBallPaddleCollisions(ball, newBallPosition, paddle)
     if collisionPoint and collisionPoint.y <= paddleLeft.y then
         newAngle = math.rad(-90 - angleRange)
 
-        table.insert(collisions, { point = collisionPoint, newAngle = newAngle })
+        table.insert(collisions, { point = collisionPoint, newAngle = newAngle, type = TypeEnum.PADDLE })
     end
 
     -- right corner
@@ -279,7 +286,7 @@ local function calculateBallPaddleCollisions(ball, newBallPosition, paddle)
     if collisionPoint and collisionPoint.y <= paddleRight.y then
         newAngle = math.rad(-90 + angleRange)
 
-        table.insert(collisions, { point = collisionPoint, newAngle = newAngle })
+        table.insert(collisions, { point = collisionPoint, newAngle = newAngle, type = TypeEnum.PADDLE  })
     end
 
     return findClosestCollision(ball.position, collisions)
@@ -302,7 +309,7 @@ local function calculateBallWallsCollisions(ball, newBallPosition, window)
         { pos0 = topRightCorner, pos1 = bottomRightCorner, normal = left }, -- right wall
     }
 
-    return calculateBallEdgesCollision(ball, newBallPosition, walls)
+    return calculateBallEdgesCollision(ball, newBallPosition, walls, TypeEnum.WALL)
 end
 
 function module.calculateNextCollision(ball, newBallPosition, bricks, paddle, window)
@@ -329,7 +336,7 @@ function module.calculateNextCollision(ball, newBallPosition, bricks, paddle, wi
         error()
     end
 
-    return collision.point, newVelocity, collision.hitElement
+    return collision.point, newVelocity, collision.hitElement, collision.type
 end
 
 return module
