@@ -276,7 +276,7 @@ local function calculateBallPaddleCollisions(ball, newBallPosition, paddle)
     if collisionPoint and collisionPoint.y <= paddleLeft.y then
         newAngle = math.rad(-90 - angleRange)
 
-        table.insert(collisions, { point = collisionPoint, newAngle = newAngle })
+        table.insert(collisions, { point = collisionPoint, newAngle = newAngle, type = TypeEnum.PADDLE })
     end
 
     -- right corner
@@ -286,7 +286,7 @@ local function calculateBallPaddleCollisions(ball, newBallPosition, paddle)
     if collisionPoint and collisionPoint.y <= paddleRight.y then
         newAngle = math.rad(-90 + angleRange)
 
-        table.insert(collisions, { point = collisionPoint, newAngle = newAngle })
+        table.insert(collisions, { point = collisionPoint, newAngle = newAngle, type = TypeEnum.PADDLE  })
     end
 
     return findClosestCollision(ball.position, collisions)
