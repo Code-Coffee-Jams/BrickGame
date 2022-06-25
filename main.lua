@@ -56,6 +56,7 @@ local paddle = {
     hitSound = love.audio.newSource("assets/sounds/soft-bang.ogg", "static")
 }
 
+local startBalldVelocity = 300
 local ball = {
     imagePath = "assets/png/ballBlue.png",
     spriteName = "ball",
@@ -64,7 +65,7 @@ local ball = {
     height = 22,
     position = Vector.new(),
     velocity = Vector.new(),
-    dVelocity = 300,
+    dVelocity = startBalldVelocity,
 }
 
 
@@ -162,6 +163,7 @@ end
 local function resetBall()
     ball.position:setXY(window.width / 2, paddle.position.y - (ball.height + 8))
     ball.velocity:setXY(0, 1)
+    ball.dVelocity = startBalldVelocity
 end
 
 local function resetPaddle()
@@ -226,17 +228,23 @@ local function updateBall(dt)
         return
     end
 
-    local collisionPoint, newVelocity, hitElement, collisionType = Collisions.calculateNextCollision(ball,
-        newBallPosition, bricks, paddle, window)
+    local collisionPoint, newVelocity, hitElement, collisionType, newDVelocity = Collisions.calculateNextCollision(
+        ball,newBallPosition, bricks, paddle, window)
 
 
     if not collisionPoint then
-        -- no collision detected, simply move ball
+        -- no collision detected
 
+        -- slow the ball boosted velocity
+        local slowingStages = 20
+        if ball.dVelocity ~= startBalldVelocity and ball.position.y < paddle.position.y then
+            ball.dVelocity = ( (slowingStages - 1) * ball.dVelocity + startBalldVelocity) / slowingStages
+        end
+
+        -- move the ball
         ball.position:transform(dBallPosition)
         return true
     else
-
         if collisionType == Collisions.TypeEnum.WALL then
             if wallSound:isPlaying() then wallSound2:play() else wallSound:play() end
         elseif collisionType == Collisions.TypeEnum.BRICK then
@@ -262,8 +270,13 @@ local function updateBall(dt)
             end
         end
 
-        -- apply new reflected velocity
+        -- apply new reflected velocity and dVelocity
         ball.velocity = newVelocity
+
+        if newDVelocity then
+            ball.dVelocity = newDVelocity
+        end
+
 
         -- calculate remaining dt after the collision
         local distanceTravelled = (collisionPoint - ball.position):getLength()

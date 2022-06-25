@@ -289,6 +289,39 @@ local function calculateBallPaddleCollisions(ball, newBallPosition, paddle)
         table.insert(collisions, { point = collisionPoint, newAngle = newAngle, type = TypeEnum.PADDLE  })
     end
 
+
+    -- horizontal collisions
+    if ball.position.y + ball.radius > paddle.position.y - paddle.height / 2 and ball.position.y - ball.radius <= paddle.position.y + paddle.height / 2 then
+
+        local yOffset = (ball.position.y - paddle.position.y) / (paddle.height)
+        local velocityBoost = 1.3
+        local leftDegs = 180
+        local rightDegs = 0
+
+        if ball.position.x < paddle.position.x and ball.position.x + ball.radius > paddleLeft.x then
+            local degs = leftDegs - angleRange * yOffset
+            local dVelocity
+            if degs < leftDegs + 1.0 and degs > leftDegs - 1.0 then newAngle = math.rad(leftDegs + 5) else newAngle = math.rad(degs) end
+            if paddle.velocity.x < 0 and degs < leftDegs + angleRange then
+                dVelocity = math.max(ball.dVelocity, math.abs(paddle.dVelocity) * velocityBoost)
+            end
+            table.insert(collisions, { point = Vector.new(paddleLeft.x - ball.radius, ball.position.y), newAngle = newAngle, type = TypeEnum.PADDLE, newDVelocity = dVelocity })
+        end
+
+        if ball.position.x > paddle.position.x and ball.position.x - ball.radius < paddleRight.x then
+            local degs = rightDegs + angleRange * yOffset
+            local dVelocity
+            if degs < rightDegs + 1.0 and degs > rightDegs - 1.0 then newAngle = math.rad(rightDegs - 5) else newAngle = math.rad(degs) end
+            if paddle.velocity.x > 0 and degs > -angleRange then
+                dVelocity = math.max(ball.dVelocity, math.abs(paddle.dVelocity) * velocityBoost)
+            end
+
+            table.insert(collisions, { point = Vector.new(paddleRight.x + ball.radius, ball.position.y), newAngle = newAngle, type = TypeEnum.PADDLE, newDVelocity = dVelocity })
+        end
+
+    end
+
+
     return findClosestCollision(ball.position, collisions)
 end
 
@@ -325,6 +358,8 @@ function module.calculateNextCollision(ball, newBallPosition, bricks, paddle, wi
 
     local newVelocity = ball.velocity:copy()
 
+    local newDVelocity = collision.newDVelocity
+
     if collision.normal then
         -- calculate reflected velocity using normal
         newVelocity:reflect(collision.normal)
@@ -336,7 +371,7 @@ function module.calculateNextCollision(ball, newBallPosition, bricks, paddle, wi
         error()
     end
 
-    return collision.point, newVelocity, collision.hitElement, collision.type
+    return collision.point, newVelocity, collision.hitElement, collision.type, newDVelocity
 end
 
 return module
