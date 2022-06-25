@@ -294,6 +294,22 @@ local function updateBall(dt)
     end
 end
 
+local function paddleSqueezesBallLeft()
+    local paddleLeftX = paddle.position.x - paddle.width / 2
+    local ballBottomY = ball.position.y + ball.radius
+    local paddleTopY = paddle.position.y - paddle.height / 2
+
+    return ball.position.x <= ball.width and  paddleLeftX <= ball.width and ball.position.y <= paddle.position.y and ballBottomY >= paddleTopY
+end
+
+local function paddleSqueezesBallRight()
+    local paddleRightX = paddle.position.x + paddle.width / 2
+    local ballBottomY = ball.position.y + ball.radius
+    local paddleTopY = paddle.position.y - paddle.height / 2
+
+    return ball.position.x + ball.width >= window.width and paddleRightX >= window.width - ball.width and ball.position.y <= paddle.position.y and ballBottomY >= paddleTopY
+end
+
 function love.load()
     -- init random seed
     math.randomseed(os.time())
@@ -381,6 +397,11 @@ function love.update(dt)
             elseif paddleSpeed < 0 then
                 paddle.velocity.x = (math.min(0, paddleSpeed + paddle.dFrictionDeceleration * dt))
             end
+        end
+
+        -- bounce paddle if it's to squeeze the ball to the wall
+        if paddleSqueezesBallLeft() or paddleSqueezesBallRight() then
+            paddle.velocity = paddle.velocity * (-0.7)
         end
 
         -- move paddle

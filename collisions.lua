@@ -325,6 +325,34 @@ local function calculateBallPaddleCollisions(ball, newBallPosition, paddle)
     return findClosestCollision(ball.position, collisions)
 end
 
+local function calculateFlatAngleWallCollision(ball, wallCollision)
+    local ballVelocityDegs = math.deg(ball.velocity:getAngle())
+    local leftDegs = -180
+    local rightDegs = 0
+
+    local change
+    local newAngle
+    if ballVelocityDegs >= leftDegs and ballVelocityDegs < leftDegs + 25 then
+        local diff = ballVelocityDegs - leftDegs
+        change = -math.max(0, 15 - math.abs(diff))
+    end
+
+    if ballVelocityDegs <= rightDegs and ballVelocityDegs > rightDegs - 25 then
+        local diff = ballVelocityDegs - rightDegs
+        change = math.max(0, 15 - math.abs(diff))
+    end
+
+    if change and wallCollision then
+        local newVelocity = ball.velocity:copy()
+        newVelocity:reflect(wallCollision.normal)
+        local angle = newVelocity:getAngle()
+
+        newAngle = math.rad(math.deg(angle) + change)
+    end
+
+    return newAngle
+end
+
 local function calculateBallWallsCollisions(ball, newBallPosition, window)
     local minX = 0
     local maxX = window.width
@@ -342,7 +370,29 @@ local function calculateBallWallsCollisions(ball, newBallPosition, window)
         { pos0 = topRightCorner, pos1 = bottomRightCorner, normal = left }, -- right wall
     }
 
-    return calculateBallEdgesCollision(ball, newBallPosition, walls, TypeEnum.WALL)
+    local closestWallCollision = calculateBallEdgesCollision(ball, newBallPosition, walls, TypeEnum.WALL)
+
+    -- change ball velocity angle when too "flat" on wall hit
+    local newAngle = calculateFlatAngleWallCollision(ball, closestWallCollision)
+    if newAngle then
+        closestWallCollision.newAngle = newAngle
+        closestWallCollision.normal = nil
+    end
+
+
+    -- prevent ball going through left border
+    if ball.position.x - ball.radius < bottomLeftCorner.x then
+        return { point = Vector.new(bottomLeftCorner.x + ball.radius, ball.position.y), normal=left, type = TypeEnum.Wall }
+    end
+
+    -- prevent ball going through left border
+    if ball.position.x + ball.radius > bottomRightCorner.x then
+        return { point = Vector.new(bottomRightCorner.x - ball.radius, ball.position.y), normal=right, type = TypeEnum.Wall }
+    end
+
+
+
+    return closestWallCollision
 end
 
 function module.calculateNextCollision(ball, newBallPosition, bricks, paddle, window)
