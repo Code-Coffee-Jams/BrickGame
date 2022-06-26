@@ -291,32 +291,44 @@ local function calculateBallPaddleCollisions(ball, newBallPosition, paddle)
 
 
     -- horizontal collisions
-    if ball.position.y + ball.radius > paddle.position.y - paddle.height / 2 and ball.position.y - ball.radius <= paddle.position.y + paddle.height / 2 then
+    local ballYInsidePaddleYRange = (
+        ball.position.y + ball.radius > paddle.position.y and
+        ball.position.y - ball.radius <= paddle.position.y + paddle.height / 2
+    )
+    if ballYInsidePaddleYRange then
 
-        local yOffset = (ball.position.y - paddle.position.y) / (paddle.height)
-        local velocityBoost = 1.3
-        local leftDegs = 180
-        local rightDegs = 0
+        local ballXInsideLeftPaddleSide = ball.position.x < paddle.position.x and ball.position.x + ball.radius > paddleLeft.x
+        local ballXInsideRightPaddleSide = ball.position.x > paddle.position.x and ball.position.x - ball.radius < paddleRight.x
+        local leftDegs, rightDegs
 
-        if ball.position.x < paddle.position.x and ball.position.x + ball.radius > paddleLeft.x then
-            local degs = leftDegs - angleRange * yOffset
-            local dVelocity
-            if degs < leftDegs + 1.0 and degs > leftDegs - 1.0 then newAngle = math.rad(leftDegs + 5) else newAngle = math.rad(degs) end
-            if paddle.velocity.x < 0 and degs < leftDegs + angleRange then
-                dVelocity = math.max(ball.dVelocity, math.abs(paddle.dVelocity) * velocityBoost)
-            end
-            table.insert(collisions, { point = Vector.new(paddleLeft.x - ball.radius, ball.position.y), newAngle = newAngle, type = TypeEnum.PADDLE, newDVelocity = dVelocity })
+        if ballXInsideLeftPaddleSide then
+            leftDegs = 180
         end
 
-        if ball.position.x > paddle.position.x and ball.position.x - ball.radius < paddleRight.x then
-            local degs = rightDegs + angleRange * yOffset
+        if ballXInsideRightPaddleSide then
+            rightDegs = 0
+        end
+
+        if leftDegs ~= nil or rightDegs ~= nil then
+            local yOffset = (ball.position.y - paddle.position.y) / (paddle.height)
+            local horizontalDegs = leftDegs or rightDegs
+
+            local sign
+            if leftDegs ~= nil then sign = -1 else sign = 1 end
+
+            -- compute new angle - in case it is 0 or 180 degs, lift it up 5 degrees
+            local degs = horizontalDegs + (angleRange * yOffset) * sign
+            if degs < horizontalDegs + 1.0 and degs > horizontalDegs - 1.0 then newAngle = math.rad(horizontalDegs - (5 * sign)) else newAngle = math.rad(degs) end
+
+            -- if paddle speeds towards the ball, increase the ball's velocity
             local dVelocity
-            if degs < rightDegs + 1.0 and degs > rightDegs - 1.0 then newAngle = math.rad(rightDegs - 5) else newAngle = math.rad(degs) end
-            if paddle.velocity.x > 0 and degs > -angleRange then
+            local paddleMovesToBall = (leftDegs ~= nil and paddle.velocity.x < 0) or (rightDegs ~= nil and paddle.velocity.x > 0)
+            if paddleMovesToBall then
+                local velocityBoost = 1.3
                 dVelocity = math.max(ball.dVelocity, math.abs(paddle.dVelocity) * velocityBoost)
             end
 
-            table.insert(collisions, { point = Vector.new(paddleRight.x + ball.radius, ball.position.y), newAngle = newAngle, type = TypeEnum.PADDLE, newDVelocity = dVelocity })
+            table.insert(collisions, { point = Vector.new((paddle.position.x + (paddle.width / 2) * sign) + ball.radius * sign, ball.position.y), newAngle = newAngle, type = TypeEnum.PADDLE, newDVelocity = dVelocity })
         end
 
     end
