@@ -323,7 +323,8 @@ local function calculateBallPaddleCollisions(ball, newBallPosition, paddle)
             -- if paddle speeds towards the ball, increase the ball's velocity
             local dVelocity
             local paddleMovesToBall = (leftDegs ~= nil and paddle.velocity.x < 0) or (rightDegs ~= nil and paddle.velocity.x > 0)
-            if paddleMovesToBall then
+            local angleInRange = (leftDegs ~= nil and degs < leftDegs + angleRange) or (rightDegs ~= nil and degs > -angleRange)
+            if paddleMovesToBall and angleInRange then
                 local velocityBoost = 1.3
                 dVelocity = math.max(ball.dVelocity, math.abs(paddle.dVelocity) * velocityBoost)
             end
