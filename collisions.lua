@@ -289,7 +289,84 @@ local function calculateBallPaddleCollisions(ball, newBallPosition, paddle)
         table.insert(collisions, { point = collisionPoint, newAngle = newAngle, type = TypeEnum.PADDLE  })
     end
 
+
+    -- horizontal collisions
+    local ballYInsidePaddleYRange = (
+        ball.position.y + ball.radius > paddle.position.y and
+        ball.position.y - ball.radius <= paddle.position.y + paddle.height / 2
+    )
+    if ballYInsidePaddleYRange then
+
+        local ballXInsideLeftPaddleSide = ball.position.x < paddle.position.x and ball.position.x + ball.radius > paddleLeft.x
+        local ballXInsideRightPaddleSide = ball.position.x > paddle.position.x and ball.position.x - ball.radius < paddleRight.x
+        local leftDegs, rightDegs
+
+        if ballXInsideLeftPaddleSide then
+            leftDegs = 180
+        end
+
+        if ballXInsideRightPaddleSide then
+            rightDegs = 0
+        end
+
+        if leftDegs ~= nil or rightDegs ~= nil then
+            local yOffset = (ball.position.y - paddle.position.y) / (paddle.height)
+            local horizontalDegs = leftDegs or rightDegs
+
+            local sign
+            if leftDegs ~= nil then sign = -1 else sign = 1 end
+
+            -- compute new angle - in case it is 0 or 180 degs, lift it up 5 degrees
+            local degs = horizontalDegs + (angleRange * yOffset) * sign
+            if degs < horizontalDegs + 1.0 and degs > horizontalDegs - 1.0 then newAngle = math.rad(horizontalDegs - (5 * sign)) else newAngle = math.rad(degs) end
+
+            -- if paddle speeds towards the ball, increase the ball's velocity
+            local dVelocity
+            local paddleMovesToBall = (leftDegs ~= nil and paddle.velocity.x < 0) or (rightDegs ~= nil and paddle.velocity.x > 0)
+            local angleInRange = (leftDegs ~= nil and degs < leftDegs + angleRange) or (rightDegs ~= nil and degs > -angleRange)
+            if paddleMovesToBall and angleInRange then
+                local velocityBoost = 1.3
+                dVelocity = math.max(ball.dVelocity, math.abs(paddle.dVelocity) * velocityBoost)
+            end
+
+            table.insert(collisions, { point = Vector.new((paddle.position.x + (paddle.width / 2) * sign) + ball.radius * sign, ball.position.y), newAngle = newAngle, type = TypeEnum.PADDLE, newDVelocity = dVelocity })
+        end
+
+    end
+
+
     return findClosestCollision(ball.position, collisions)
+end
+
+local function calculateFlatAngleWallCollision(ball, wallCollision)
+    local ballVelocityDegs = math.deg(ball.velocity:getAngle())
+    local leftDegs = -180
+    local rightDegs = 0
+
+    local change
+    local newAngle
+    -- check if the ball goes too flat in a top-left direction
+    if ballVelocityDegs >= leftDegs and ballVelocityDegs < leftDegs + 25 then
+        local diff = ballVelocityDegs - leftDegs
+        change = -math.max(0, 15 - math.abs(diff))
+    end
+
+    -- check if the ball goes too flat in a top-right direction
+    if ballVelocityDegs <= rightDegs and ballVelocityDegs > rightDegs - 25 then
+        local diff = ballVelocityDegs - rightDegs
+        change = math.max(0, 15 - math.abs(diff))
+    end
+
+    -- boost the angle
+    if change and wallCollision then
+        local newVelocity = ball.velocity:copy()
+        newVelocity:reflect(wallCollision.normal)
+        local angle = newVelocity:getAngle()
+
+        newAngle = math.rad(math.deg(angle) + change)
+    end
+
+    return newAngle
 end
 
 local function calculateBallWallsCollisions(ball, newBallPosition, window)
@@ -309,7 +386,28 @@ local function calculateBallWallsCollisions(ball, newBallPosition, window)
         { pos0 = topRightCorner, pos1 = bottomRightCorner, normal = left }, -- right wall
     }
 
-    return calculateBallEdgesCollision(ball, newBallPosition, walls, TypeEnum.WALL)
+    local closestWallCollision = calculateBallEdgesCollision(ball, newBallPosition, walls, TypeEnum.WALL)
+
+    -- change ball velocity angle when too "flat" on wall hit
+    local newAngle = calculateFlatAngleWallCollision(ball, closestWallCollision)
+    if newAngle then
+        closestWallCollision.newAngle = newAngle
+        closestWallCollision.normal = nil
+    end
+
+    -- prevent ball going through left border
+    if ball.position.x - ball.radius < bottomLeftCorner.x then
+        return { point = Vector.new(bottomLeftCorner.x + ball.radius, ball.position.y), normal=left, type = TypeEnum.Wall }
+    end
+
+    -- prevent ball going through left border
+    if ball.position.x + ball.radius > bottomRightCorner.x then
+        return { point = Vector.new(bottomRightCorner.x - ball.radius, ball.position.y), normal=right, type = TypeEnum.Wall }
+    end
+
+
+
+    return closestWallCollision
 end
 
 function module.calculateNextCollision(ball, newBallPosition, bricks, paddle, window)
@@ -325,6 +423,8 @@ function module.calculateNextCollision(ball, newBallPosition, bricks, paddle, wi
 
     local newVelocity = ball.velocity:copy()
 
+    local newDVelocity = collision.newDVelocity
+
     if collision.normal then
         -- calculate reflected velocity using normal
         newVelocity:reflect(collision.normal)
@@ -336,7 +436,7 @@ function module.calculateNextCollision(ball, newBallPosition, bricks, paddle, wi
         error()
     end
 
-    return collision.point, newVelocity, collision.hitElement, collision.type
+    return collision.point, newVelocity, collision.hitElement, collision.type, newDVelocity
 end
 
 return module
