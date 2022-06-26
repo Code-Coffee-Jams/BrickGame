@@ -344,16 +344,19 @@ local function calculateFlatAngleWallCollision(ball, wallCollision)
 
     local change
     local newAngle
+    -- check if the ball goes too flat in a top-left direction
     if ballVelocityDegs >= leftDegs and ballVelocityDegs < leftDegs + 25 then
         local diff = ballVelocityDegs - leftDegs
         change = -math.max(0, 15 - math.abs(diff))
     end
 
+    -- check if the ball goes too flat in a top-right direction
     if ballVelocityDegs <= rightDegs and ballVelocityDegs > rightDegs - 25 then
         local diff = ballVelocityDegs - rightDegs
         change = math.max(0, 15 - math.abs(diff))
     end
 
+    -- boost the angle
     if change and wallCollision then
         local newVelocity = ball.velocity:copy()
         newVelocity:reflect(wallCollision.normal)
@@ -390,7 +393,6 @@ local function calculateBallWallsCollisions(ball, newBallPosition, window)
         closestWallCollision.newAngle = newAngle
         closestWallCollision.normal = nil
     end
-
 
     -- prevent ball going through left border
     if ball.position.x - ball.radius < bottomLeftCorner.x then
